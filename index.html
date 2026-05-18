@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WatchWorthy — YouTube Tutorial Quality Evaluator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --accent: #ff0000;
+      --white: #ffffff;
+      --muted: #888888;
+      --surface: #111111;
+      --surface-2: #1a1a1a;
+      --border: #222222;
+      --border-nav: #1f1f1f;
+      --chip-bg: #1a1a1a;
+      --footer: #555555;
+      --verdict-good: #22c55e;
+      --verdict-warn: #f59e0b;
+      --verdict-bad: #ef4444;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 16px;
+      background: var(--bg);
+      color: var(--white);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    #site-bg {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+      filter: blur(2.5px);
+      opacity: 0.88;
+      transform: translateZ(0);
+    }
+
+    .site-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-nav);
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 1.125rem;
+      letter-spacing: -0.02em;
+    }
+
+    .wordmark-icon {
+      color: var(--accent);
+      font-size: 0.75rem;
+      line-height: 1;
+    }
+
+    .nav-link {
+      font-size: 0.875rem;
+      color: var(--muted);
+      transition: color 0.15s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--white);
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 24px 60px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .hero h1 {
+      margin: 0 0 16px;
+      font-size: 48px;
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    @media (max-width: 520px) {
+      .hero h1 {
+        font-size: clamp(1.75rem, 7vw, 2.25rem);
+      }
+    }
+
+    .hero .sub {
+      margin: 0 0 32px;
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .input-wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      display: flex;
+      align-items: stretch;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #111111;
+      position: relative;
+      border: 1.5px solid rgba(255, 0, 0, 0.15);
+    }
+
+    .input-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background: conic-gradient(
+        from var(--angle, 0deg),
+        rgba(255, 0, 0, 0.05) 0deg,
+        rgba(255, 0, 0, 0.05) 285deg,
+        rgba(255, 0, 0, 0.35) 315deg,
+        rgba(255, 0, 0, 0.85) 335deg,
+        #ff0000 350deg,
+        rgba(255, 0, 0, 0.85) 365deg,
+        rgba(255, 0, 0, 0.35) 385deg,
+        rgba(255, 0, 0, 0.05) 405deg
+      );
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      padding: 1.5px;
+      animation: border-spin 4.5s linear infinite;
+      pointer-events: none;
+      z-index: 2;
+      will-change: --angle;
+    }
+
+    .input-wrap.analyzing::after {
+      animation: border-spin 1.4s linear infinite;
+    }
+
+    .input-wrap.done::after {
+      animation: none;
+      background: rgba(255, 0, 0, 0.7);
+    }
+
+    @property --angle {
+      syntax: "<angle>";
+      initial-value: 0deg;
+      inherits: false;
+    }
+
+    @keyframes border-spin {
+      from { --angle: 0deg; }
+      to { --angle: 360deg; }
+    }
+
+    .input-wrap input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: #111111;
+      color: var(--white);
+      font-size: 16px;
+      font-family: inherit;
+      padding: 14px 16px;
+      outline: none;
+      position: relative;
+      z-index: 1;
+    }
+
+    .input-wrap input::placeholder {
+      color: #666666;
+    }
+
+    .input-wrap .btn-analyze {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+      border: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.06);
+      background: #111111;
+      color: var(--white);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 0 22px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .input-wrap .btn-analyze:hover:not(:disabled) {
+      background: #1a1a1a;
+    }
+
+    .input-wrap .btn-analyze:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .url-error {
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--verdict-bad);
+      display: none;
+    }
+
+    .url-error.visible {
+      display: block;
+    }
+
+    /* Loading skeleton */
+    .results-loading {
+      display: none;
+      max-width: 1100px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+    }
+
+    .results-loading.visible {
+      display: block;
+    }
+
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .skeleton-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .skeleton-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      min-height: 280px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .skeleton-card::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 40%;
+      left: 0;
+      background: rgba(255, 255, 255, 0.05);
+      animation: shimmer 1.2s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(350%);
+      }
+    }
+
+    /* Results */
+    .results {
+      display: none;
+      max-width: 1100px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+    }
+
+    .results.visible {
+      display: block;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Score column */
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px 36px;
+      text-align: center;
+    }
+
+    .ring-wrap {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto 24px;
+      position: relative;
+    }
+
+    @media (max-width: 768px) {
+      .ring-wrap {
+        width: 120px;
+        height: 120px;
+      }
+    }
+
+    .ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+      fill: none;
+      stroke: #1a1a1a;
+      stroke-width: 10;
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 0 999;
+      transition: stroke-dasharray 0.05s linear;
+    }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      pointer-events: none;
+    }
+
+    .ring-score {
+      font-family: "DM Mono", monospace;
+      font-size: 48px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    @media (max-width: 768px) {
+      .ring-score {
+        font-size: 32px;
+      }
+    }
+
+    .ring-max {
+      font-family: "DM Mono", monospace;
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .verdict {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 28px;
+    }
+
+    .verdict.good {
+      color: var(--verdict-good);
+    }
+
+    .verdict.warn {
+      color: var(--verdict-warn);
+    }
+
+    .verdict.bad {
+      color: var(--verdict-bad);
+    }
+
+    .sub-scores {
+      text-align: left;
+    }
+
+    .sub-row {
+      margin-bottom: 18px;
+    }
+
+    .sub-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .sub-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .sub-label-text {
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .sub-label-text strong {
+      display: block;
+      color: var(--white);
+      font-weight: 500;
+    }
+
+    .sub-label .sub-meta {
+      font-size: 11px;
+      color: #666666;
+      font-weight: 400;
+    }
+
+    .sub-label .sub-val {
+      font-family: "DM Mono", monospace;
+      font-size: 13px;
+      color: var(--white);
+      flex-shrink: 0;
+      align-self: flex-start;
+      padding-top: 2px;
+    }
+
+    .sub-bar-track {
+      height: 6px;
+      background: #1a1a1a;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .sub-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #444444;
+      border-radius: 3px;
+      transition: width 1s ease-out;
+    }
+
+    /* Detail column */
+    .detail-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .thumb-placeholder {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #1a1a1a;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+
+    .video-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      line-height: 1.35;
+    }
+
+    .channel-name {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 16px;
+    }
+
+    .stat-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .stat-chip {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      padding: 6px 10px;
+      background: var(--chip-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #cccccc;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+
+    .breakdown-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .pill {
+      font-size: 12px;
+      padding: 6px 10px;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: #cccccc;
+    }
+
+    .timestamps {
+      list-style: none;
+      margin: 0 0 24px;
+      padding: 0;
+    }
+
+    .timestamps li {
+      margin-bottom: 8px;
+    }
+
+    .timestamps li:last-child {
+      margin-bottom: 0;
+    }
+
+    .ts-chip {
+      display: inline-block;
+      font-size: 13px;
+      padding: 8px 12px;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--white);
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .ts-chip:hover {
+      border-color: #444444;
+      background: #222222;
+    }
+
+    .filler-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .filler-label span:last-child {
+      font-family: "DM Mono", monospace;
+      color: var(--muted);
+    }
+
+    .filler-track {
+      height: 8px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .filler-fill {
+      height: 100%;
+      width: 0%;
+      background: #555555;
+      border-radius: 4px;
+      transition: width 1s ease-out 0.2s;
+    }
+
+    /* RAG */
+    .rag-section {
+      display: none;
+      max-width: 1100px;
+      margin: 0 auto 64px;
+      padding: 0 24px;
+    }
+
+    .rag-section.visible {
+      display: block;
+    }
+
+    .rag-section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 16px;
+    }
+
+    .rag-input-row {
+      display: flex;
+      gap: 0;
+      border: 1px solid rgba(255, 0, 0, 0.45);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #111111;
+      max-width: 640px;
+      box-shadow: 0 0 10px rgba(255, 0, 0, 0.1);
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+      border: 1.5px solid rgba(255,0,0,0.45);
+box-shadow: 0 0 8px rgba(255,0,0,0.15);
+    }
+
+    .rag-input-row:focus-within {
+      border-color: rgba(255, 0, 0, 0.95);
+      box-shadow: 0 0 16px rgba(255, 0, 0, 0.28);
+    }
+
+    .rag-input-row input {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      color: var(--white);
+      font-size: 15px;
+      font-family: inherit;
+      padding: 12px 16px;
+      outline: none;
+    }
+
+    .btn-ask {
+      flex-shrink: 0;
+      border: 0;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--white);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 0 20px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-ask:hover:not(:disabled) {
+      background: #1a1a1a;
+    }
+
+    .btn-ask:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .answer-card {
+      margin-top: 16px;
+      max-width: 640px;
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-size: 14px;
+      color: var(--white);
+      line-height: 1.55;
+      min-height: 72px;
+    }
+
+    .answer-placeholder {
+      color: var(--muted);
+    }
+
+    .answer-loading {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+    }
+
+    .answer-loading.visible {
+      display: flex;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: bounce 0.6s ease-in-out infinite alternate;
+    }
+
+    .dot:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    .dot:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+
+    @keyframes bounce {
+      from {
+        opacity: 0.35;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(-4px);
+      }
+    }
+
+    /* How it works */
+    .how {
+      padding: 64px 24px 80px;
+      border-top: 1px solid var(--border-nav);
+    }
+
+    .how-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .how h2 {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 40px;
+    }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .how-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .how-card {
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .how-num {
+      font-family: "DM Mono", monospace;
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .how-card h3 {
+      margin: 0 0 10px;
+      font-size: 1.0625rem;
+      font-weight: 600;
+    }
+
+    .how-card p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 13px;
+      color: var(--footer);
+      border-top: 1px solid var(--border-nav);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="site-bg" width="1" height="1" aria-hidden="true"></canvas>
+  <div class="site-content">
+  <nav class="navbar">
+    <div class="wordmark">
+      <span class="wordmark-icon" aria-hidden="true">▶</span>
+      <span>WatchWorthy</span>
+    </div>
+    <a class="nav-link" href="#how-it-works">How it works</a>
+  </nav>
+
+  <header class="hero">
+      <h1>Is this tutorial worth your time?</h1>
+      <p class="sub">
+        Paste any YouTube URL. Get a quality score based on engagement, sentiment, and content depth.
+      </p>
+      <div class="input-wrap">
+        <input
+          type="url"
+          id="youtube-url"
+          placeholder="https://www.youtube.com/watch?v=..."
+          autocomplete="off"
+        />
+        <button type="button" class="btn-analyze" id="btn-analyze">Analyze</button>
+      </div>
+      <p class="url-error" id="url-error" role="alert">Please enter a valid YouTube URL.</p>
+  </header>
+
+  <div class="results-loading" id="results-loading" aria-hidden="true">
+    <div class="skeleton-grid">
+      <div class="skeleton-card" aria-hidden="true"></div>
+      <div class="skeleton-card" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <main class="results" id="results" aria-live="polite">
+    <div class="results-grid">
+      <div class="score-card">
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="ring-bg" cx="50" cy="50" r="42" />
+            <circle class="ring-progress" id="score-ring" cx="50" cy="50" r="42" />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-score" id="ring-score-display">0</span>
+            <span class="ring-max">/10</span>
+          </div>
+        </div>
+        <p class="verdict good" id="verdict-label">Worth Watching</p>
+        <div class="sub-scores">
+          <div class="sub-row">
+            <div class="sub-label">
+              <span class="sub-label-text">
+                <strong>Content Depth</strong>
+                <span class="sub-meta">(transcript analysis, 40% weight)</span>
+              </span>
+              <span class="sub-val"><span id="depth-val">0</span>/10</span>
+            </div>
+            <div class="sub-bar-track">
+              <div class="sub-bar-fill" id="depth-bar"></div>
+            </div>
+          </div>
+          <div class="sub-row">
+            <div class="sub-label">
+              <span class="sub-label-text">
+                <strong>Viewer Sentiment</strong>
+                <span class="sub-meta">(comment analysis, 30% weight)</span>
+              </span>
+              <span class="sub-val"><span id="sent-val">0</span>/10</span>
+            </div>
+            <div class="sub-bar-track">
+              <div class="sub-bar-fill" id="sent-bar"></div>
+            </div>
+          </div>
+          <div class="sub-row">
+            <div class="sub-label">
+              <span class="sub-label-text">
+                <strong>Engagement Quality</strong>
+                <span class="sub-meta">(likes/views ratio, 30% weight)</span>
+              </span>
+              <span class="sub-val"><span id="eng-val">0</span>/10</span>
+            </div>
+            <div class="sub-bar-track">
+              <div class="sub-bar-fill" id="eng-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <div class="thumb-placeholder" role="img" aria-label="Video thumbnail placeholder"></div>
+        <h2 class="video-title" id="video-title">Python Async/Await Explained – Full Tutorial</h2>
+        <p class="channel-name" id="channel-name">Tech With Tim</p>
+        <div class="stat-chips">
+          <span class="stat-chip" id="stat-views">Views: 1,200,000</span>
+          <span class="stat-chip" id="stat-likes">Likes: 48,000</span>
+          <span class="stat-chip" id="stat-comments">Comments: 1,240</span>
+        </div>
+        <p class="section-label">Comment Breakdown</p>
+        <div class="breakdown-pills">
+          <span class="pill">🟢 Understanding 54%</span>
+          <span class="pill">🔴 Confusion 21%</span>
+          <span class="pill">🟡 Outdated 15%</span>
+          <span class="pill">⚪ Irrelevant 10%</span>
+        </div>
+        <p class="section-label">Key Timestamps</p>
+        <ul class="timestamps" id="timestamps-list">
+          <li>
+            <a class="ts-chip" href="#" data-seconds="134">02:14 — Introduction to loops</a>
+          </li>
+          <li>
+            <a class="ts-chip" href="#" data-seconds="272">04:32 — Async/await basics</a>
+          </li>
+          <li>
+            <a class="ts-chip" href="#" data-seconds="610">10:10 — aiohttp examples</a>
+          </li>
+        </ul>
+        <p class="section-label">Filler Score</p>
+        <div class="filler-label">
+          <span>Off-topic filler</span>
+          <span id="filler-pct-label">18%</span>
+        </div>
+        <div class="filler-track">
+          <div class="filler-fill" id="filler-bar"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section class="rag-section" id="rag-section">
+    <h2>Ask about this video</h2>
+    <div class="rag-input-row">
+      <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
+      <button type="button" class="btn-ask" id="btn-ask">Ask</button>
+    </div>
+    <div class="answer-card" id="answer-card">
+      <span class="answer-placeholder" id="answer-placeholder">
+        Ask anything about the video content — e.g. &apos;Does it cover async/await?&apos;
+      </span>
+      <div class="answer-loading" id="answer-loading" aria-live="polite">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <span id="answer-text" style="display: none"></span>
+    </div>
+  </section>
+
+  <section class="how" id="how-it-works">
+    <div class="how-inner">
+      <h2>How it works</h2>
+      <div class="how-grid">
+        <article class="how-card">
+          <div class="how-num">01</div>
+          <h3>Paste URL</h3>
+          <p>Copy any public YouTube tutorial link and drop it into the analyzer. We only need the watch URL to begin.</p>
+        </article>
+        <article class="how-card">
+          <div class="how-num">02</div>
+          <h3>We Analyze</h3>
+          <p>Signals from comments, engagement ratios, and inferred structure combine into weighted sub-scores you can trust at a glance.</p>
+        </article>
+        <article class="how-card">
+          <div class="how-num">03</div>
+          <h3>Get Your Score</h3>
+          <p>See an overall verdict, sub-metrics, and timestamp hints so you can jump straight to the parts that matter.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    WatchWorthy · Built with YouTube Data API · Hugging Face Spaces
+  </footer>
+  </div>
+
+
+<script>
+  (function () {
+    const ring = document.getElementById("score-ring");
+    const ringDisplay = document.getElementById("ring-score-display");
+    const verdictEl = document.getElementById("verdict-label");
+    const resultsEl = document.getElementById("results");
+    const loadingEl = document.getElementById("results-loading");
+    const ragSection = document.getElementById("rag-section");
+    const urlInput = document.getElementById("youtube-url");
+    const btnAnalyze = document.getElementById("btn-analyze");
+    const urlError = document.getElementById("url-error");
+    const btnAsk = document.getElementById("btn-ask");
+    const answerPlaceholder = document.getElementById("answer-placeholder");
+    const answerLoading = document.getElementById("answer-loading");
+    const answerText = document.getElementById("answer-text");
+  
+    const R = 42;
+    const CIRC = 2 * Math.PI * R;
+  
+    let currentVideoId = null;
+  
+    // ── Validation ──────────────────────────────────────────────────────────
+    function isYouTubeUrl(str) {
+      if (!str || typeof str !== "string") return false;
+      try {
+        const u = new URL(str.trim());
+        const h = u.hostname.replace(/^www\./, "");
+        if (h === "youtu.be") return u.pathname.length > 1;
+        if (["youtube.com", "m.youtube.com", "music.youtube.com"].includes(h)) {
+          if (u.pathname === "/watch" && u.searchParams.get("v")) return true;
+          if (u.pathname.startsWith("/embed/") && u.pathname.length > 8) return true;
+          if (u.pathname.startsWith("/shorts/") && u.pathname.length > 8) return true;
+        }
+        return false;
+      } catch { return false; }
+    }
+  
+    // ── Ring animation ──────────────────────────────────────────────────────
+    function setRingProgress(fraction) {
+      ring.style.strokeDasharray = CIRC + " " + CIRC;
+      ring.style.strokeDashoffset = String(CIRC * (1 - fraction));
+    }
+  
+    function animateRing(targetScore, durationMs) {
+      const start = performance.now();
+      setRingProgress(0);
+      ringDisplay.textContent = "0";
+      function frame(now) {
+        const t = Math.min(1, (now - start) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const current = targetScore * eased;
+        setRingProgress(current / 10);
+        ringDisplay.textContent = current.toFixed(1);
+        if (t < 1) requestAnimationFrame(frame);
+        else { setRingProgress(targetScore / 10); ringDisplay.textContent = targetScore.toFixed(1); }
+      }
+      requestAnimationFrame(frame);
+    }
+  
+    function animateNumber(el, end, decimals, durationMs) {
+      const start = performance.now();
+      function frame(now) {
+        const t = Math.min(1, (now - start) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = (end * eased).toFixed(decimals);
+        if (t < 1) requestAnimationFrame(frame);
+        else el.textContent = end.toFixed(decimals);
+      }
+      requestAnimationFrame(frame);
+    }
+  
+    // ── Verdict ─────────────────────────────────────────────────────────────
+    function setVerdict(score) {
+      verdictEl.classList.remove("good", "warn", "bad");
+      if (score >= 7) { verdictEl.textContent = "Worth Watching"; verdictEl.classList.add("good"); }
+      else if (score >= 4) { verdictEl.textContent = "Borderline"; verdictEl.classList.add("warn"); }
+      else { verdictEl.textContent = "Skip It"; verdictEl.classList.add("bad"); }
+    }
+  
+    // ── Populate UI with real data ───────────────────────────────────────────
+    function populateResults(data) {
+      // Thumbnail
+      let thumbEl = document.querySelector(".thumb-placeholder");
+if (!thumbEl) thumbEl = document.querySelector(".detail-card img");
+if (data.thumbnail && thumbEl) {
+  const img = document.createElement("img");
+  img.src = data.thumbnail;
+  img.className = "thumb-placeholder";
+  img.style.cssText = "width:100%;border-radius:10px;margin-bottom:16px;display:block;aspect-ratio:16/9;object-fit:cover;";
+  thumbEl.replaceWith(img);
+}
+  
+      document.getElementById("video-title").textContent = data.title;
+      document.getElementById("channel-name").textContent = data.channel;
+      document.getElementById("stat-views").textContent = "Views: " + Number(data.views).toLocaleString();
+      document.getElementById("stat-likes").textContent = "Likes: " + Number(data.likes).toLocaleString();
+      document.getElementById("stat-comments").textContent = "Comments: " + Number(data.comment_count).toLocaleString();
+  
+      // Comment breakdown pills
+      const pillContainer = document.querySelector(".breakdown-pills");
+      pillContainer.innerHTML = "";
+      const icons = { understanding: "🟢", confusion: "🔴", outdated: "🟡", irrelevant: "⚪" };
+      const pcts = data.comment_pcts || {};
+      for (const [label, pct] of Object.entries(pcts)) {
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        pill.textContent = `${icons[label] || "•"} ${label.charAt(0).toUpperCase() + label.slice(1)} ${pct}%`;
+        pillContainer.appendChild(pill);
+      }
+  
+      // Timestamps
+      const tsList = document.getElementById("timestamps-list");
+      tsList.innerHTML = "";
+      if (data.timestamps && data.timestamps.length > 0) {
+        data.timestamps.forEach(ts => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.className = "ts-chip";
+          a.href = `https://www.youtube.com/watch?v=${data.video_id}&t=${ts.seconds}s`;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          const mins = Math.floor(ts.seconds / 60).toString().padStart(2, "0");
+          const secs = (ts.seconds % 60).toString().padStart(2, "0");
+          a.textContent = `${mins}:${secs} — ${ts.label}`;
+          li.appendChild(a);
+          tsList.appendChild(li);
+        });
+      } else {
+        tsList.innerHTML = "<li style='color:#666;font-size:13px'>No timestamps detected</li>";
+      }
+  
+      // Filler bar
+      document.getElementById("filler-pct-label").textContent = data.filler_pct + "%";
+  
+      // Scores + verdict
+      setVerdict(data.score);
+  
+      // Animate everything
+      requestAnimationFrame(() => {
+        document.getElementById("depth-bar").style.width = data.depth * 10 + "%";
+        document.getElementById("sent-bar").style.width = data.sentiment * 10 + "%";
+        document.getElementById("eng-bar").style.width = data.engagement * 10 + "%";
+        document.getElementById("filler-bar").style.width = data.filler_pct + "%";
+        animateNumber(document.getElementById("depth-val"), data.depth, 1, 1000);
+        animateNumber(document.getElementById("sent-val"), data.sentiment, 1, 1000);
+        animateNumber(document.getElementById("eng-val"), data.engagement, 1, 1000);
+      });
+  
+      animateRing(data.score, 1200);
+    }
+  
+    function resetBars() {
+      ["depth-bar", "sent-bar", "eng-bar"].forEach(id => {
+        document.getElementById(id).style.width = "0%";
+      });
+      document.getElementById("filler-bar").style.width = "0%";
+      document.getElementById("depth-val").textContent = "0";
+      document.getElementById("sent-val").textContent = "0";
+      document.getElementById("eng-val").textContent = "0";
+    }
+  
+    // ── Analyze button ───────────────────────────────────────────────────────
+    btnAnalyze.addEventListener("click", async function () {
+  const raw = urlInput.value.trim();
+  urlError.classList.remove("visible");
+
+  if (!isYouTubeUrl(raw)) {
+    urlError.classList.add("visible");
+    return;
+  }
+
+  btnAnalyze.disabled = true;
+  document.querySelector(".input-wrap").classList.add("analyzing");      // ← ADD
+  document.querySelector(".input-wrap").classList.remove("done");        // ← ADD
+  resultsEl.classList.remove("visible");
+  ragSection.classList.remove("visible");
+  loadingEl.classList.add("visible");
+  answerPlaceholder.style.display = "";
+  answerText.style.display = "none";
+  answerText.textContent = "";
+
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: raw }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Analysis failed");
+    }
+
+    const data = await res.json();
+    currentVideoId = data.video_id;
+
+    const inputWrap = document.querySelector(".input-wrap");
+    inputWrap.classList.remove("analyzing");
+    inputWrap.classList.add("done");
+    clearTimeout(inputWrap._doneTimer);
+    inputWrap._doneTimer = setTimeout(function () {
+      inputWrap.classList.remove("done");
+    }, 2000);
+    loadingEl.classList.remove("visible");
+    resetBars();
+    populateResults(data);
+    resultsEl.classList.add("visible");
+    ragSection.classList.add("visible");
+    resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  } catch (err) {
+    document.querySelector(".input-wrap").classList.remove("analyzing");  // ← ADD
+    loadingEl.classList.remove("visible");
+    urlError.textContent = "Error: " + err.message;
+    urlError.classList.add("visible");
+  } finally {
+    btnAnalyze.disabled = false;
+  }
+});
+  
+    // ── Ask button (CAG) ─────────────────────────────────────────────────────
+    btnAsk.addEventListener("click", async function () {
+      const question = document.getElementById("rag-query").value.trim();
+      if (!question || !currentVideoId) return;
+  
+      answerPlaceholder.style.display = "none";
+      answerText.style.display = "none";
+      answerText.textContent = "";
+      answerLoading.classList.add("visible");
+      btnAsk.disabled = true;
+  
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ video_id: currentVideoId, question }),
+        });
+  
+        const data = await res.json();
+        answerLoading.classList.remove("visible");
+        answerText.style.display = "block";
+        answerText.textContent = data.answer || "No answer found.";
+      } catch {
+        answerLoading.classList.remove("visible");
+        answerText.style.display = "block";
+        answerText.textContent = "Something went wrong. Try again.";
+      } finally {
+        btnAsk.disabled = false;
+      }
+    });
+  
+    setRingProgress(0);
+  })();
+  </script>
+  <script>
+    (function () {
+      var canvas = document.getElementById("site-bg");
+      if (!canvas) return;
+      var ctx = canvas.getContext("2d");
+      var LERP = 0.05, PAD = 20, MOBILE_MAX = 768, REPULSE_R = 140;
+      var cw = 0, ch = 0, dpr = 1, mobile = false;
+      var mouseX = -9999, mouseY = -9999, mouseInCanvas = false;
+      var rings = [], bars = [];
+    
+      function rand(min, max) { return min + Math.random() * (max - min); }
+      function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+      function randomScoreText() { return (rand(4, 9.5)).toFixed(1); }
+      function randomDurationLabel() {
+        var m = Math.floor(rand(3, 59)), s = Math.floor(rand(0, 59));
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+      }
+      function syncMobileFlag() { mobile = window.innerWidth < MOBILE_MAX; }
+    
+      function resizeCanvas() {
+        syncMobileFlag();
+        cw = Math.max(1, Math.floor(window.innerWidth));
+        ch = Math.max(1, Math.floor(window.innerHeight));
+        dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(cw * dpr);
+        canvas.height = Math.floor(ch * dpr);
+        canvas.style.width = cw + "px";
+        canvas.style.height = ch + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (rings.length === 0) initAll(); else repositionAfterResize();
+      }
+    
+      function createRing() {
+        var radius = rand(30, 90), margin = PAD + radius;
+        var r = {
+          radius, arcFraction: rand(0.6, 0.85), baseAlpha: rand(0.06, 0.18),
+          displayAlpha: 0, scoreText: randomScoreText(),
+          driftAngle: rand(0, Math.PI * 2), driftSpeed: rand(0.15, 0.35),
+          rotSpeed: rand(0.002, 0.005) * (Math.random() < 0.5 ? -1 : 1),
+          vx: 0, vy: 0,
+          px: rand(margin, Math.max(margin, cw - margin)),
+          py: rand(margin, Math.max(margin, ch - margin)),
+          rx: 0, ry: 0, rotAccum: rand(0, Math.PI * 2), displayRot: 0,
+        };
+        r.rx = r.px; r.ry = r.py;
+        r.displayAlpha = r.baseAlpha; r.displayRot = r.rotAccum;
+        return r;
+      }
+    
+      function createBar(preservePlayhead) {
+        var b = { widthFrac: 0.5, xStartFrac: 0.1, barW: 100, x0: 0, y: 40,
+          h: 1.5, creep: 0.0001, playhead: rand(0.1, 0.9), opacityMult: 1,
+          durationRight: "14:32", glitchFrames: 0 };
+        layoutBar(b, preservePlayhead); return b;
+      }
+    
+      function layoutBar(b, preservePlayhead) {
+        b.widthFrac = rand(0.35, 0.75); b.xStartFrac = rand(0.05, 0.25);
+        b.barW = cw * b.widthFrac;
+        b.x0 = clamp(cw * b.xStartFrac, PAD, Math.max(PAD, cw - b.barW - PAD));
+        b.y = rand(PAD + 40, Math.max(PAD + 40, ch - PAD - 28));
+        b.h = 1.5; b.creep = rand(0.00008, 0.0002);
+        b.opacityMult = rand(0.5, 1); b.durationRight = randomDurationLabel();
+        if (!preservePlayhead) b.playhead = rand(0.1, 0.9);
+        else b.playhead = clamp(b.playhead, 0.05, 0.92);
+        b.glitchFrames = 0;
+      }
+    
+      function initAll() {
+        syncMobileFlag(); rings.length = 0; bars.length = 0;
+        var rc = mobile ? 3 : 6, bc = mobile ? 3 : 5;
+        for (var i = 0; i < rc; i++) rings.push(createRing());
+        for (var i = 0; i < bc; i++) bars.push(createBar(false));
+      }
+    
+      function repositionAfterResize() {
+        var ringCount = mobile ? 3 : 6, barCount = mobile ? 3 : 5;
+        while (rings.length < ringCount) rings.push(createRing());
+        rings.length = ringCount;
+        for (var i = 0; i < rings.length; i++) {
+          rings[i].px = clamp(rings[i].px, PAD + rings[i].radius, cw - PAD - rings[i].radius);
+          rings[i].py = clamp(rings[i].py, PAD + rings[i].radius, ch - PAD - rings[i].radius);
+          rings[i].rx = rings[i].px; rings[i].ry = rings[i].py;
+        }
+        while (bars.length < barCount) bars.push(createBar(false));
+        bars.length = barCount;
+        for (var i = 0; i < bars.length; i++) layoutBar(bars[i], true);
+      }
+    
+      function updateRings() {
+        var repelOn = !mobile && mouseInCanvas;
+        for (var i = 0; i < rings.length; i++) {
+          var r = rings[i];
+          var tvx = Math.cos(r.driftAngle) * r.driftSpeed;
+          var tvy = Math.sin(r.driftAngle) * r.driftSpeed;
+          if (repelOn) {
+            var dx = r.rx - mouseX, dy = r.ry - mouseY;
+            var dist = Math.hypot(dx, dy);
+            if (dist < REPULSE_R && dist > 0.001) {
+              var str = (REPULSE_R - dist) / REPULSE_R;
+              tvx += (dx / dist) * str * 0.55; tvy += (dy / dist) * str * 0.55;
+            }
+          }
+          r.vx += (tvx - r.vx) * 0.12; r.vy += (tvy - r.vy) * 0.12;
+          r.px += r.vx; r.py += r.vy;
+          var m = PAD + r.radius;
+          if (r.px < m) { r.px = m; r.vx = Math.abs(r.vx); }
+          else if (r.px > cw - m) { r.px = cw - m; r.vx = -Math.abs(r.vx); }
+          if (r.py < m) { r.py = m; r.vy = Math.abs(r.vy); }
+          else if (r.py > ch - m) { r.py = ch - m; r.vy = -Math.abs(r.vy); }
+          r.rotAccum += r.rotSpeed;
+          r.rx += (r.px - r.rx) * LERP; r.ry += (r.py - r.ry) * LERP;
+          r.displayRot += (r.rotAccum - r.displayRot) * LERP;
+          var distM = repelOn ? Math.hypot(r.rx - mouseX, r.ry - mouseY) : 9999;
+          var ta = repelOn && distM < REPULSE_R ? 0.25 : r.baseAlpha;
+          r.displayAlpha += (ta - r.displayAlpha) * 0.08;
+        }
+      }
+    
+      function updateBars() {
+        for (var i = 0; i < bars.length; i++) {
+          bars[i].playhead += bars[i].creep;
+          if (bars[i].playhead >= 0.92) { bars[i].playhead = rand(0.05, 0.3); bars[i].glitchFrames = 8; }
+        }
+      }
+    
+      function drawRings() {
+        for (var i = 0; i < rings.length; i++) {
+          var r = rings[i];
+          var sweep = r.arcFraction * Math.PI * 2;
+          ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,0,0," + r.displayAlpha + ")";
+          ctx.lineCap = "round"; ctx.beginPath();
+          ctx.arc(r.rx, r.ry, r.radius, r.displayRot, r.displayRot + sweep);
+          ctx.stroke();
+          var ex = r.rx + Math.cos(r.displayRot + sweep) * r.radius;
+          var ey = r.ry + Math.sin(r.displayRot + sweep) * r.radius;
+          ctx.beginPath(); ctx.arc(ex, ey, 2, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,0,0,0.4)"; ctx.fill();
+          ctx.font = '500 ' + r.radius * 0.45 + 'px "DM Mono", monospace';
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(255,255,255,0.07)";
+          ctx.fillText(r.scoreText, r.rx, r.ry);
+        }
+      }
+    
+      function drawBars() {
+        for (var i = 0; i < bars.length; i++) {
+          var b = bars[i], om = b.opacityMult, ph = clamp(b.playhead, 0, 1);
+          var playedW = b.barW * ph;
+          ctx.fillStyle = "rgba(255,255,255," + 0.04 * om + ")";
+          ctx.fillRect(b.x0, b.y, b.barW, b.h);
+          ctx.fillStyle = "rgba(255,0,0," + 0.25 * om + ")";
+          ctx.fillRect(b.x0, b.y, playedW, b.h);
+          ctx.beginPath(); ctx.arc(b.x0 + playedW, b.y + b.h * 0.5, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,0,0," + 0.35 * om + ")"; ctx.fill();
+          ctx.font = '9px "DM Mono", monospace'; ctx.textBaseline = "top";
+          ctx.fillStyle = "rgba(255,255,255," + 0.05 * om + ")";
+          ctx.textAlign = "left"; ctx.fillText("00:00", b.x0, b.y + b.h + 4);
+          ctx.textAlign = "right"; ctx.fillText(b.durationRight, b.x0 + b.barW, b.y + b.h + 4);
+          if (b.glitchFrames > 0) {
+            for (var j = 0; j < 3; j++) {
+              var gw = b.barW * rand(0.08, 0.55);
+              ctx.fillStyle = "rgba(255,0,0,0.5)";
+              ctx.fillRect(b.x0 + rand(0, b.barW - gw), b.y + rand(-2, 2), gw, 1);
+            }
+            b.glitchFrames--;
+          }
+        }
+      }
+    
+      function drawVignette() {
+        var cx = cw * 0.5, cy = ch * 0.5, rad = Math.max(cw, ch) * 0.75;
+        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)");
+        ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+      }
+    
+      function frame() {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cw, ch);
+        updateBars(); updateRings(); drawBars(); drawRings(); drawVignette();
+        requestAnimationFrame(frame);
+      }
+    
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener("mousemove", function(ev) {
+        var rect = canvas.getBoundingClientRect();
+        mouseX = ev.clientX - rect.left; mouseY = ev.clientY - rect.top;
+        mouseInCanvas = ev.clientX >= rect.left && ev.clientX <= rect.right &&
+          ev.clientY >= rect.top && ev.clientY <= rect.bottom;
+      });
+      requestAnimationFrame(frame);
+    })();
+    </script>
+</body>
+</html>
