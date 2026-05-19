@@ -8,4 +8,6 @@ sentence-transformers
 torch
 scikit-learn
 numpy
+groq
 sentencepiece
+pyspellchecker
