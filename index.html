@@ -54,11 +54,46 @@
       filter: blur(2.5px);
       opacity: 0.88;
       transform: translateZ(0);
+      transition: opacity 0.4s ease;
+    }
+
+    .generating-label {
+      margin-top: 46px;
+      color: rgba(236, 160, 160, 0.88);
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1;
+      text-shadow: 0 0 14px rgba(124, 6, 6, 0.627);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+
+    .generating-label::after {
+      content: "";
+      display: inline-block;
+      width: 1.4em;
+      text-align: left;
+      animation: generating-dots 1.1s steps(4, end) infinite;
+    }
+
+    .hero.analyzing .generating-label {
+      opacity: 1;
+    }
+
+    @keyframes generating-dots {
+      0% { content: ""; }
+      25% { content: "."; }
+      50% { content: ".."; }
+      75%, 100% { content: "..."; }
     }
 
     .site-content {
       position: relative;
       z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     a {
@@ -95,9 +130,15 @@
     }
 
     .nav-link {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      font: inherit;
       font-size: 0.875rem;
       color: var(--muted);
       transition: color 0.15s ease;
+      cursor: pointer;
     }
 
     .nav-link:hover {
@@ -107,9 +148,20 @@
     /* Hero */
     .hero {
       text-align: center;
-      padding: 80px 24px 60px;
+      width: 100%;
       max-width: 720px;
       margin: 0 auto;
+      padding: 48px 24px;
+      min-height: calc(100vh - 145px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: min-height 0.45s ease, padding 0.45s ease;
+    }
+
+    .hero.analyzing,
+    .hero.has-results {
+      min-height: 430px;
     }
 
     .hero h1 {
@@ -118,6 +170,10 @@
       font-weight: 600;
       line-height: 1.15;
       letter-spacing: -0.03em;
+      max-height: 140px;
+      opacity: 1;
+      overflow: hidden;
+      transition: opacity 0.35s ease, max-height 0.45s ease, margin 0.45s ease, transform 0.45s ease;
     }
 
     @media (max-width: 520px) {
@@ -133,10 +189,23 @@
       max-width: 560px;
       margin-left: auto;
       margin-right: auto;
+      max-height: 90px;
+      opacity: 1;
+      overflow: hidden;
+      transition: opacity 0.35s ease, max-height 0.45s ease, margin 0.45s ease, transform 0.45s ease;
+    }
+
+    .hero.analyzing .sub {
+      opacity: 0;
+      max-height: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+      transform: translateY(-14px);
     }
 
     .input-wrap {
-      max-width: 640px;
+      width: min(760px, 100%);
+      max-width: 760px;
       margin: 0 auto;
       display: flex;
       align-items: stretch;
@@ -144,7 +213,9 @@
       overflow: hidden;
       background: #111111;
       position: relative;
-      border: 1.5px solid rgba(255, 0, 0, 0.15);
+      border: none;
+      box-shadow: 0 0 8px 1px rgba(255, 0, 0, 0.08);
+      transition: max-width 0.45s ease, transform 0.45s ease, box-shadow 0.25s ease;
     }
 
     .input-wrap::after {
@@ -154,14 +225,13 @@
       border-radius: 10px;
       background: conic-gradient(
         from var(--angle, 0deg),
-        rgba(255, 0, 0, 0.05) 0deg,
-        rgba(255, 0, 0, 0.05) 285deg,
-        rgba(255, 0, 0, 0.35) 315deg,
-        rgba(255, 0, 0, 0.85) 335deg,
-        #ff0000 350deg,
-        rgba(255, 0, 0, 0.85) 365deg,
-        rgba(255, 0, 0, 0.35) 385deg,
-        rgba(255, 0, 0, 0.05) 405deg
+        rgba(255, 0, 0, 0.06) 0deg,
+        rgba(255, 0, 0, 0.06) 280deg,
+        rgba(255, 0, 0, 0.4) 300deg,
+        rgba(255, 0, 0, 0.7) 320deg,
+        rgba(255, 0, 0, 0.7) 350deg,
+        rgba(255, 0, 0, 0.4) 370deg,
+        rgba(255, 0, 0, 0.06) 390deg
       );
       -webkit-mask:
         linear-gradient(#fff 0 0) content-box,
@@ -172,19 +242,34 @@
         linear-gradient(#fff 0 0);
       mask-composite: exclude;
       padding: 1.5px;
-      animation: border-spin 4.5s linear infinite;
+      animation: border-spin 6s linear infinite;
       pointer-events: none;
       z-index: 2;
       will-change: --angle;
     }
 
     .input-wrap.analyzing::after {
-      animation: border-spin 1.4s linear infinite;
+      opacity: 0;
+      animation: none;
+    }
+
+    .input-wrap.analyzing {
+      animation: glow-pulse 1s ease-in-out infinite;
+      box-shadow: 0 0 20px 4px rgba(255, 0, 0, 0.2);
+    }
+
+    .hero.analyzing .input-wrap {
+      transform: translateY(10px);
+    }
+
+    .input-wrap.done {
+      animation: none;
+      box-shadow: 0 0 8px 1px rgba(255, 0, 0, 0.08);
     }
 
     .input-wrap.done::after {
       animation: none;
-      background: rgba(255, 0, 0, 0.7);
+      opacity: 0;
     }
 
     @property --angle {
@@ -194,9 +279,13 @@
     }
 
     @keyframes border-spin {
-      from { --angle: 0deg; }
-      to { --angle: 360deg; }
+    from { --angle: 0deg; }
+    to { --angle: 360deg; }
     }
+    @keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(255, 0, 0, 0.12); }
+  50%       { box-shadow: 0 0 16px 3px rgba(255, 0, 0, 0.28); }
+}
 
     .input-wrap input {
       flex: 1;
@@ -222,19 +311,24 @@
       flex-shrink: 0;
       border: 0;
       border-left: 1px solid rgba(255, 255, 255, 0.06);
-      background: #111111;
+      background: rgba(255, 0, 0, 0.08);
       color: var(--white);
       font-family: inherit;
       font-weight: 600;
       font-size: 15px;
-      padding: 0 22px;
+      min-width: 132px;
+      padding: 0 32px;
       cursor: pointer;
       transition: background 0.2s ease, color 0.2s ease;
       border-radius: 0 8px 8px 0;
     }
 
     .input-wrap .btn-analyze:hover:not(:disabled) {
-      background: #1a1a1a;
+      background: rgba(255, 0, 0, 0.18);
+    }
+
+    .input-wrap .btn-analyze:active:not(:disabled) {
+      background: rgba(255, 0, 0, 0.25);
     }
 
     .input-wrap .btn-analyze:disabled {
@@ -262,7 +356,7 @@
     }
 
     .results-loading.visible {
-      display: block;
+      display: none;
     }
 
     .skeleton-grid {
@@ -278,14 +372,14 @@
     }
 
     .skeleton-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      min-height: 280px;
-      position: relative;
-      overflow: hidden;
-    }
-
+  background: #111111;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  min-height: 280px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
     .skeleton-card::after {
       content: "";
       position: absolute;
@@ -321,7 +415,8 @@
     .results-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 32px;
+      column-gap: 32px;
+      row-gap: 10px;
       align-items: start;
     }
 
@@ -333,6 +428,8 @@
 
     /* Score column */
     .score-card {
+      grid-column: 1;
+      grid-row: 1;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -488,6 +585,8 @@
 
     /* Detail column */
     .detail-card {
+      grid-column: 2;
+      grid-row: 1 / span 2;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -616,78 +715,127 @@
 
     /* RAG */
     .rag-section {
-      display: none;
-      max-width: 1100px;
-      margin: 0 auto 64px;
-      padding: 0 24px;
+      grid-column: 1;
+      grid-row: 2;
+      min-width: 0;
     }
 
-    .rag-section.visible {
-      display: block;
-    }
-
-    .rag-section h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0 0 16px;
+    @media (max-width: 768px) {
+      .score-card,
+      .detail-card,
+      .rag-section {
+        grid-column: auto;
+        grid-row: auto;
+      }
     }
 
     .rag-input-row {
       display: flex;
+      align-items: stretch;
       gap: 0;
-      border: 1px solid rgba(255, 0, 0, 0.45);
+      min-height: 59px;
       border-radius: 10px;
       overflow: hidden;
       background: #111111;
-      max-width: 640px;
-      box-shadow: 0 0 10px rgba(255, 0, 0, 0.1);
-      transition: border-color 0.25s ease, box-shadow 0.25s ease;
-      border: 1.5px solid rgba(255,0,0,0.45);
-box-shadow: 0 0 8px rgba(255,0,0,0.15);
+      position: relative;
+      border: none;
+      box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.18);
+      transition: box-shadow 0.25s ease;
+    }
+
+    .rag-input-row::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background: conic-gradient(
+        from var(--rag-angle, 0deg),
+        transparent 0deg,
+        transparent 300deg,
+        rgba(255, 0, 0, 0.25) 320deg,
+        rgba(255, 0, 0, 0.75) 340deg,
+        #ff0000 350deg,
+        rgba(255, 0, 0, 0.75) 360deg,
+        transparent 380deg
+      );
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      padding: 1.5px;
+      animation: border-spin-rag 5s linear infinite;
+      pointer-events: none;
+      z-index: 2;
+      will-change: --rag-angle;
     }
 
     .rag-input-row:focus-within {
-      border-color: rgba(255, 0, 0, 0.95);
-      box-shadow: 0 0 16px rgba(255, 0, 0, 0.28);
+      box-shadow: 0 0 16px 4px rgba(255, 0, 0, 0.32);
+    }
+
+    @property --rag-angle {
+      syntax: "<angle>";
+      initial-value: 0deg;
+      inherits: false;
+    }
+
+    @keyframes border-spin-rag {
+      from { --rag-angle: 0deg; }
+      to { --rag-angle: 360deg; }
     }
 
     .rag-input-row input {
       flex: 1;
+      min-width: 0;
       border: 0;
-      background: transparent;
+      background: #111111;
       color: var(--white);
       font-size: 15px;
       font-family: inherit;
-      padding: 12px 16px;
+      padding: 18px 18px;
       outline: none;
+      position: relative;
+      z-index: 1;
     }
 
-    .btn-ask {
+    .rag-input-row .btn-ask {
+      position: relative;
+      z-index: 1;
       flex-shrink: 0;
       border: 0;
-      border-left: 1px solid var(--border);
-      background: var(--surface);
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 0, 0, 0.08);
       color: var(--white);
       font-family: inherit;
       font-weight: 600;
-      font-size: 14px;
-      padding: 0 20px;
+      font-size: 15px;
+      padding: 0 28px;
+      min-width: 88px;
       cursor: pointer;
-      transition: background 0.15s ease;
+      transition: background 0.2s ease;
+      border-radius: 0 8px 8px 0;
     }
 
-    .btn-ask:hover:not(:disabled) {
-      background: #1a1a1a;
+    .rag-input-row .btn-ask:hover:not(:disabled) {
+      background: rgba(255, 0, 0, 0.18);
     }
 
-    .btn-ask:disabled {
+    .rag-input-row .btn-ask:active:not(:disabled) {
+      background: rgba(255, 0, 0, 0.25);
+    }
+
+    .rag-input-row .btn-ask:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
     .answer-card {
+      display: none;
       margin-top: 16px;
-      max-width: 640px;
       background: #111111;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -695,18 +843,14 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
       font-size: 14px;
       color: var(--white);
       line-height: 1.55;
-      min-height: 72px;
     }
 
-    .answer-placeholder {
-      color: var(--muted);
-    }
-
-    .answer-loading {
+    .rag-section .answer-loading {
       display: none;
       align-items: center;
       gap: 6px;
       color: var(--muted);
+      margin-top: 16px;
     }
 
     .answer-loading.visible {
@@ -740,40 +884,92 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
       }
     }
 
-    /* How it works */
-    .how {
-      padding: 64px 24px 80px;
-      border-top: 1px solid var(--border-nav);
+    /* How it works modal */
+    .how-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
     }
 
-    .how-inner {
-      max-width: 1100px;
-      margin: 0 auto;
+    .how-modal.visible {
+      display: flex;
     }
 
-    .how h2 {
-      text-align: center;
+    .how-dialog {
+      width: min(920px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      overflow: auto;
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+    }
+
+    .how-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .how-head h2 {
+      margin: 0;
       font-size: 1.5rem;
       font-weight: 600;
-      margin: 0 0 40px;
     }
 
-    .how-grid {
+    .how-close {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #1a1a1a;
+      color: var(--white);
+      font: inherit;
+      font-size: 18px;
+      line-height: 1;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+    }
+
+    .how-flow {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .flow-arrow {
+      color: var(--accent);
+      text-align: center;
+      font-family: "DM Mono", monospace;
+      font-size: 1.75rem;
+      font-weight: 600;
+      opacity: 0.86;
     }
 
     @media (max-width: 768px) {
-      .how-grid {
+      .how-flow {
         grid-template-columns: 1fr;
+      }
+
+      .flow-arrow {
+        transform: rotate(90deg);
       }
     }
 
     .how-card {
-      background: #111111;
+      min-height: 190px;
+      background: #151515;
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 12px;
       padding: 24px;
     }
 
@@ -798,6 +994,7 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
       line-height: 1.55;
     }
     footer {
+      margin-top: auto;
       text-align: center;
       padding: 24px;
       font-size: 13px;
@@ -814,7 +1011,7 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
       <span class="wordmark-icon" aria-hidden="true">▶</span>
       <span>WatchWorthy</span>
     </div>
-    <a class="nav-link" href="#how-it-works">How it works</a>
+    <button class="nav-link" type="button" id="how-open">How it works</button>
   </nav>
 
   <header class="hero">
@@ -831,6 +1028,7 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
         />
         <button type="button" class="btn-analyze" id="btn-analyze">Analyze</button>
       </div>
+      <div class="generating-label" id="generating-label" aria-hidden="true">Generating score</div>
       <p class="url-error" id="url-error" role="alert">Please enter a valid YouTube URL.</p>
   </header>
 
@@ -932,42 +1130,43 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
           <div class="filler-fill" id="filler-bar"></div>
         </div>
       </div>
+
+      <div class="rag-section" id="rag-section">
+        <div class="rag-input-row">
+          <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
+          <button type="button" class="btn-ask" id="btn-ask">Ask</button>
+        </div>
+        <div class="answer-loading" id="answer-loading" aria-live="polite">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <div class="answer-card" id="answer-card">
+          <span id="answer-text"></span>
+        </div>
+      </div>
     </div>
   </main>
 
-  <section class="rag-section" id="rag-section">
-    <h2>Ask about this video</h2>
-    <div class="rag-input-row">
-      <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
-      <button type="button" class="btn-ask" id="btn-ask">Ask</button>
-    </div>
-    <div class="answer-card" id="answer-card">
-      <span class="answer-placeholder" id="answer-placeholder">
-        Ask anything about the video content — e.g. &apos;Does it cover async/await?&apos;
-      </span>
-      <div class="answer-loading" id="answer-loading" aria-live="polite">
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
+  <div class="how-modal" id="how-modal" aria-hidden="true">
+    <div class="how-dialog" role="dialog" aria-modal="true" aria-labelledby="how-title">
+      <div class="how-head">
+        <h2 id="how-title">How it works</h2>
+        <button class="how-close" type="button" id="how-close" aria-label="Close">x</button>
       </div>
-      <span id="answer-text" style="display: none"></span>
-    </div>
-  </section>
-
-  <section class="how" id="how-it-works">
-    <div class="how-inner">
-      <h2>How it works</h2>
-      <div class="how-grid">
+      <div class="how-flow">
         <article class="how-card">
           <div class="how-num">01</div>
           <h3>Paste URL</h3>
           <p>Copy any public YouTube tutorial link and drop it into the analyzer. We only need the watch URL to begin.</p>
         </article>
+        <div class="flow-arrow" aria-hidden="true">-&gt;</div>
         <article class="how-card">
           <div class="how-num">02</div>
           <h3>We Analyze</h3>
           <p>Signals from comments, engagement ratios, and inferred structure combine into weighted sub-scores you can trust at a glance.</p>
         </article>
+        <div class="flow-arrow" aria-hidden="true">-&gt;</div>
         <article class="how-card">
           <div class="how-num">03</div>
           <h3>Get Your Score</h3>
@@ -975,7 +1174,7 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
         </article>
       </div>
     </div>
-  </section>
+  </div>
 
   <footer>
     WatchWorthy · Built with YouTube Data API · Hugging Face Spaces
@@ -985,17 +1184,46 @@ box-shadow: 0 0 8px rgba(255,0,0,0.15);
 
 <script>
   (function () {
+    const openBtn = document.getElementById("how-open");
+    const modal = document.getElementById("how-modal");
+    const closeBtn = document.getElementById("how-close");
+    if (!openBtn || !modal || !closeBtn) return;
+
+    function openModal() {
+      modal.classList.add("visible");
+      modal.setAttribute("aria-hidden", "false");
+      closeBtn.focus();
+    }
+
+    function closeModal() {
+      modal.classList.remove("visible");
+      modal.setAttribute("aria-hidden", "true");
+      openBtn.focus();
+    }
+
+    openBtn.addEventListener("click", openModal);
+    closeBtn.addEventListener("click", closeModal);
+    modal.addEventListener("click", function (event) {
+      if (event.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && modal.classList.contains("visible")) closeModal();
+    });
+  })();
+</script>
+
+<script>
+  (function () {
     const ring = document.getElementById("score-ring");
     const ringDisplay = document.getElementById("ring-score-display");
     const verdictEl = document.getElementById("verdict-label");
     const resultsEl = document.getElementById("results");
     const loadingEl = document.getElementById("results-loading");
-    const ragSection = document.getElementById("rag-section");
     const urlInput = document.getElementById("youtube-url");
     const btnAnalyze = document.getElementById("btn-analyze");
     const urlError = document.getElementById("url-error");
     const btnAsk = document.getElementById("btn-ask");
-    const answerPlaceholder = document.getElementById("answer-placeholder");
+    const answerCard = document.getElementById("answer-card");
     const answerLoading = document.getElementById("answer-loading");
     const answerText = document.getElementById("answer-text");
   
@@ -1155,14 +1383,17 @@ if (data.thumbnail && thumbEl) {
   }
 
   btnAnalyze.disabled = true;
+  document.querySelector(".hero").classList.add("analyzing");
+  document.querySelector(".hero").classList.remove("has-results");
   document.querySelector(".input-wrap").classList.add("analyzing");      // ← ADD
   document.querySelector(".input-wrap").classList.remove("done");        // ← ADD
   resultsEl.classList.remove("visible");
-  ragSection.classList.remove("visible");
   loadingEl.classList.add("visible");
-  answerPlaceholder.style.display = "";
-  answerText.style.display = "none";
+  answerCard.style.display = "none";
   answerText.textContent = "";
+  answerLoading.classList.remove("visible");
+
+  if (window.setWaveformAnalyzing) window.setWaveformAnalyzing(true);
 
   try {
     const res = await fetch("/analyze", {
@@ -1180,25 +1411,30 @@ if (data.thumbnail && thumbEl) {
     currentVideoId = data.video_id;
 
     const inputWrap = document.querySelector(".input-wrap");
+    document.querySelector(".hero").classList.remove("analyzing");
+    document.querySelector(".hero").classList.add("has-results");
     inputWrap.classList.remove("analyzing");
-    inputWrap.classList.add("done");
-    clearTimeout(inputWrap._doneTimer);
-    inputWrap._doneTimer = setTimeout(function () {
-      inputWrap.classList.remove("done");
-    }, 2000);
+    inputWrap.classList.remove("done");
+    window._cardsHidden = true;
     loadingEl.classList.remove("visible");
+    window._cardsHidden = false;
     resetBars();
     populateResults(data);
     resultsEl.classList.add("visible");
-    ragSection.classList.add("visible");
     resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
 
   } catch (err) {
+    document.querySelector(".hero").classList.remove("analyzing");
     document.querySelector(".input-wrap").classList.remove("analyzing");  // ← ADD
     loadingEl.classList.remove("visible");
+    document.querySelector(".hero").classList.remove("has-results");
+    document.querySelector(".input-wrap").classList.remove("done");
+    document.getElementById("site-bg").style.opacity = "0.88";
+    window._cardsHidden = false; 
     urlError.textContent = "Error: " + err.message;
     urlError.classList.add("visible");
   } finally {
+    if (window.setWaveformAnalyzing) window.setWaveformAnalyzing(false);
     btnAnalyze.disabled = false;
   }
 });
@@ -1208,8 +1444,7 @@ if (data.thumbnail && thumbEl) {
       const question = document.getElementById("rag-query").value.trim();
       if (!question || !currentVideoId) return;
   
-      answerPlaceholder.style.display = "none";
-      answerText.style.display = "none";
+      answerCard.style.display = "none";
       answerText.textContent = "";
       answerLoading.classList.add("visible");
       btnAsk.disabled = true;
@@ -1223,12 +1458,12 @@ if (data.thumbnail && thumbEl) {
   
         const data = await res.json();
         answerLoading.classList.remove("visible");
-        answerText.style.display = "block";
         answerText.textContent = data.answer || "No answer found.";
+        answerCard.style.display = "block";
       } catch {
         answerLoading.classList.remove("visible");
-        answerText.style.display = "block";
         answerText.textContent = "Something went wrong. Try again.";
+        answerCard.style.display = "block";
       } finally {
         btnAsk.disabled = false;
       }
@@ -1238,199 +1473,202 @@ if (data.thumbnail && thumbEl) {
   })();
   </script>
   <script>
-    (function () {
-      var canvas = document.getElementById("site-bg");
-      if (!canvas) return;
-      var ctx = canvas.getContext("2d");
-      var LERP = 0.05, PAD = 20, MOBILE_MAX = 768, REPULSE_R = 140;
-      var cw = 0, ch = 0, dpr = 1, mobile = false;
-      var mouseX = -9999, mouseY = -9999, mouseInCanvas = false;
-      var rings = [], bars = [];
-    
-      function rand(min, max) { return min + Math.random() * (max - min); }
-      function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
-      function randomScoreText() { return (rand(4, 9.5)).toFixed(1); }
-      function randomDurationLabel() {
-        var m = Math.floor(rand(3, 59)), s = Math.floor(rand(0, 59));
-        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  (function () {
+    var canvas = document.getElementById("site-bg");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    var cw = 0, ch = 0, dpr = 1;
+    var waveform = [];
+    var scoreCards = [];
+    var time = 0;
+    var waveformAnalyzing = false;
+
+    var WAVEFORM_COUNT = 64;
+    var WAVEFORM_BAR_W = 3;
+    var WAVEFORM_SLOT = 8;
+    var WAVEFORM_TOTAL_W = WAVEFORM_COUNT * WAVEFORM_SLOT;
+
+    function rand(min, max) { return min + Math.random() * (max - min); }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function createWaveformBar(i) {
+      return { x: 0, baseHeight: rand(14, 42), phase: i * 0.18, height: 18 };
+    }
+
+    function createScoreCard() {
+      var w = rand(110, 150);
+      var h = rand(70, 95);
+      return {
+        x: rand(24, Math.max(24, cw - w - 24)),
+        y: rand(80, Math.max(80, ch - h - 80)),
+        w: w,
+        h: h,
+        vx: rand(-0.18, 0.18),
+        vy: rand(-0.12, 0.12),
+        score: rand(4.2, 9.4).toFixed(1),
+        phase: rand(0, Math.PI * 2),
+        alpha: rand(0.05, 0.11)
+      };
+    }
+
+    function initAll() {
+      waveform = [];
+      for (var j = 0; j < WAVEFORM_COUNT; j++) {
+        waveform.push(createWaveformBar(j));
       }
-      function syncMobileFlag() { mobile = window.innerWidth < MOBILE_MAX; }
-    
-      function resizeCanvas() {
-        syncMobileFlag();
-        cw = Math.max(1, Math.floor(window.innerWidth));
-        ch = Math.max(1, Math.floor(window.innerHeight));
-        dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(cw * dpr);
-        canvas.height = Math.floor(ch * dpr);
-        canvas.style.width = cw + "px";
-        canvas.style.height = ch + "px";
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        if (rings.length === 0) initAll(); else repositionAfterResize();
+      scoreCards = [];
+      var count = window.innerWidth < 768 ? 4 : 8;
+      for (var i = 0; i < count; i++) {
+        scoreCards.push(createScoreCard());
       }
-    
-      function createRing() {
-        var radius = rand(30, 90), margin = PAD + radius;
-        var r = {
-          radius, arcFraction: rand(0.6, 0.85), baseAlpha: rand(0.06, 0.18),
-          displayAlpha: 0, scoreText: randomScoreText(),
-          driftAngle: rand(0, Math.PI * 2), driftSpeed: rand(0.15, 0.35),
-          rotSpeed: rand(0.002, 0.005) * (Math.random() < 0.5 ? -1 : 1),
-          vx: 0, vy: 0,
-          px: rand(margin, Math.max(margin, cw - margin)),
-          py: rand(margin, Math.max(margin, ch - margin)),
-          rx: 0, ry: 0, rotAccum: rand(0, Math.PI * 2), displayRot: 0,
-        };
-        r.rx = r.px; r.ry = r.py;
-        r.displayAlpha = r.baseAlpha; r.displayRot = r.rotAccum;
-        return r;
+      layoutWaveform();
+    }
+
+    function layoutWaveform() {
+      var startX = (cw - WAVEFORM_TOTAL_W) / 2;
+      for (var i = 0; i < waveform.length; i++) {
+        waveform[i].x = startX + i * WAVEFORM_SLOT;
       }
-    
-      function createBar(preservePlayhead) {
-        var b = { widthFrac: 0.5, xStartFrac: 0.1, barW: 100, x0: 0, y: 40,
-          h: 1.5, creep: 0.0001, playhead: rand(0.1, 0.9), opacityMult: 1,
-          durationRight: "14:32", glitchFrames: 0 };
-        layoutBar(b, preservePlayhead); return b;
+    }
+
+    function resizeCanvas() {
+      cw = Math.max(1, Math.floor(window.innerWidth));
+      ch = Math.max(1, Math.floor(window.innerHeight));
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(cw * dpr);
+      canvas.height = Math.floor(ch * dpr);
+      canvas.style.width = cw + "px";
+      canvas.style.height = ch + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (waveform.length === 0) initAll();
+      else layoutWaveform();
+      for (var i = 0; i < scoreCards.length; i++) {
+        scoreCards[i].x = clamp(scoreCards[i].x, 24, Math.max(24, cw - scoreCards[i].w - 24));
+        scoreCards[i].y = clamp(scoreCards[i].y, 80, Math.max(80, ch - scoreCards[i].h - 80));
       }
-    
-      function layoutBar(b, preservePlayhead) {
-        b.widthFrac = rand(0.35, 0.75); b.xStartFrac = rand(0.05, 0.25);
-        b.barW = cw * b.widthFrac;
-        b.x0 = clamp(cw * b.xStartFrac, PAD, Math.max(PAD, cw - b.barW - PAD));
-        b.y = rand(PAD + 40, Math.max(PAD + 40, ch - PAD - 28));
-        b.h = 1.5; b.creep = rand(0.00008, 0.0002);
-        b.opacityMult = rand(0.5, 1); b.durationRight = randomDurationLabel();
-        if (!preservePlayhead) b.playhead = rand(0.1, 0.9);
-        else b.playhead = clamp(b.playhead, 0.05, 0.92);
-        b.glitchFrames = 0;
+    }
+
+    function drawRoundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function updateScoreCards() {
+      for (var i = 0; i < scoreCards.length; i++) {
+        var card = scoreCards[i];
+        card.phase += 0.01;
+        card.x += card.vx + Math.cos(card.phase) * 0.04;
+        card.y += card.vy + Math.sin(card.phase) * 0.04;
+
+        if (card.x < 24 || card.x + card.w > cw - 24) card.vx *= -1;
+        if (card.y < 76 || card.y + card.h > ch - 36) card.vy *= -1;
+
+        card.x = clamp(card.x, 24, Math.max(24, cw - card.w - 24));
+        card.y = clamp(card.y, 76, Math.max(76, ch - card.h - 36));
       }
-    
-      function initAll() {
-        syncMobileFlag(); rings.length = 0; bars.length = 0;
-        var rc = mobile ? 3 : 6, bc = mobile ? 3 : 5;
-        for (var i = 0; i < rc; i++) rings.push(createRing());
-        for (var i = 0; i < bc; i++) bars.push(createBar(false));
+    }
+
+    function drawScoreCards() {
+      for (var i = 0; i < scoreCards.length; i++) {
+        var card = scoreCards[i];
+        ctx.save();
+        ctx.globalAlpha = card.alpha;
+        drawRoundedRect(card.x, card.y, card.w, card.h, 12);
+        ctx.fillStyle = "#131313";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        var cx = card.x + 34;
+        var cy = card.y + card.h * 0.5;
+        ctx.strokeStyle = "rgba(255,0,0,0.95)";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 20, -Math.PI * 0.45, Math.PI * 1.2);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.font = '600 18px "DM Mono", monospace';
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(card.score, card.x + 66, card.y + 30);
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.font = '10px "DM Mono", monospace';
+        ctx.fillText("/10", card.x + 66, card.y + 45);
+
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillRect(card.x + 66, card.y + 60, card.w - 84, 3);
+        ctx.fillStyle = "rgba(255,0,0,0.8)";
+        ctx.fillRect(card.x + 66, card.y + 60, (card.w - 84) * (Number(card.score) / 10), 3);
+        ctx.restore();
       }
-    
-      function repositionAfterResize() {
-        var ringCount = mobile ? 3 : 6, barCount = mobile ? 3 : 5;
-        while (rings.length < ringCount) rings.push(createRing());
-        rings.length = ringCount;
-        for (var i = 0; i < rings.length; i++) {
-          rings[i].px = clamp(rings[i].px, PAD + rings[i].radius, cw - PAD - rings[i].radius);
-          rings[i].py = clamp(rings[i].py, PAD + rings[i].radius, ch - PAD - rings[i].radius);
-          rings[i].rx = rings[i].px; rings[i].ry = rings[i].py;
+    }
+
+    function updateWaveform() {
+      if (waveformAnalyzing) time += 0.08;
+      var breath = waveformAnalyzing ? 1.05 + Math.sin(time * 1.8) * 0.45 : 0.55;
+      for (var i = 0; i < waveform.length; i++) {
+        var b = waveform[i];
+        var target = b.baseHeight * breath;
+        if (waveformAnalyzing) {
+          target += Math.sin(b.phase + time * 1.35) * b.baseHeight * 0.7;
         }
-        while (bars.length < barCount) bars.push(createBar(false));
-        bars.length = barCount;
-        for (var i = 0; i < bars.length; i++) layoutBar(bars[i], true);
+        b.height += (Math.max(3, target) - b.height) * 0.18;
       }
-    
-      function updateRings() {
-        var repelOn = !mobile && mouseInCanvas;
-        for (var i = 0; i < rings.length; i++) {
-          var r = rings[i];
-          var tvx = Math.cos(r.driftAngle) * r.driftSpeed;
-          var tvy = Math.sin(r.driftAngle) * r.driftSpeed;
-          if (repelOn) {
-            var dx = r.rx - mouseX, dy = r.ry - mouseY;
-            var dist = Math.hypot(dx, dy);
-            if (dist < REPULSE_R && dist > 0.001) {
-              var str = (REPULSE_R - dist) / REPULSE_R;
-              tvx += (dx / dist) * str * 0.55; tvy += (dy / dist) * str * 0.55;
-            }
-          }
-          r.vx += (tvx - r.vx) * 0.12; r.vy += (tvy - r.vy) * 0.12;
-          r.px += r.vx; r.py += r.vy;
-          var m = PAD + r.radius;
-          if (r.px < m) { r.px = m; r.vx = Math.abs(r.vx); }
-          else if (r.px > cw - m) { r.px = cw - m; r.vx = -Math.abs(r.vx); }
-          if (r.py < m) { r.py = m; r.vy = Math.abs(r.vy); }
-          else if (r.py > ch - m) { r.py = ch - m; r.vy = -Math.abs(r.vy); }
-          r.rotAccum += r.rotSpeed;
-          r.rx += (r.px - r.rx) * LERP; r.ry += (r.py - r.ry) * LERP;
-          r.displayRot += (r.rotAccum - r.displayRot) * LERP;
-          var distM = repelOn ? Math.hypot(r.rx - mouseX, r.ry - mouseY) : 9999;
-          var ta = repelOn && distM < REPULSE_R ? 0.25 : r.baseAlpha;
-          r.displayAlpha += (ta - r.displayAlpha) * 0.08;
-        }
+    }
+
+    function drawWaveform() {
+      var centreY = ch * 0.5;
+      ctx.fillStyle = waveformAnalyzing ? "rgba(255,0,0,0.58)" : "rgba(255,0,0,0.24)";
+      for (var i = 0; i < waveform.length; i++) {
+        var b = waveform[i];
+        ctx.fillRect(b.x, centreY - b.height, WAVEFORM_BAR_W, b.height * 2);
       }
-    
-      function updateBars() {
-        for (var i = 0; i < bars.length; i++) {
-          bars[i].playhead += bars[i].creep;
-          if (bars[i].playhead >= 0.92) { bars[i].playhead = rand(0.05, 0.3); bars[i].glitchFrames = 8; }
-        }
-      }
-    
-      function drawRings() {
-        for (var i = 0; i < rings.length; i++) {
-          var r = rings[i];
-          var sweep = r.arcFraction * Math.PI * 2;
-          ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,0,0," + r.displayAlpha + ")";
-          ctx.lineCap = "round"; ctx.beginPath();
-          ctx.arc(r.rx, r.ry, r.radius, r.displayRot, r.displayRot + sweep);
-          ctx.stroke();
-          var ex = r.rx + Math.cos(r.displayRot + sweep) * r.radius;
-          var ey = r.ry + Math.sin(r.displayRot + sweep) * r.radius;
-          ctx.beginPath(); ctx.arc(ex, ey, 2, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(255,0,0,0.4)"; ctx.fill();
-          ctx.font = '500 ' + r.radius * 0.45 + 'px "DM Mono", monospace';
-          ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillStyle = "rgba(255,255,255,0.07)";
-          ctx.fillText(r.scoreText, r.rx, r.ry);
-        }
-      }
-    
-      function drawBars() {
-        for (var i = 0; i < bars.length; i++) {
-          var b = bars[i], om = b.opacityMult, ph = clamp(b.playhead, 0, 1);
-          var playedW = b.barW * ph;
-          ctx.fillStyle = "rgba(255,255,255," + 0.04 * om + ")";
-          ctx.fillRect(b.x0, b.y, b.barW, b.h);
-          ctx.fillStyle = "rgba(255,0,0," + 0.25 * om + ")";
-          ctx.fillRect(b.x0, b.y, playedW, b.h);
-          ctx.beginPath(); ctx.arc(b.x0 + playedW, b.y + b.h * 0.5, 3, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(255,0,0," + 0.35 * om + ")"; ctx.fill();
-          ctx.font = '9px "DM Mono", monospace'; ctx.textBaseline = "top";
-          ctx.fillStyle = "rgba(255,255,255," + 0.05 * om + ")";
-          ctx.textAlign = "left"; ctx.fillText("00:00", b.x0, b.y + b.h + 4);
-          ctx.textAlign = "right"; ctx.fillText(b.durationRight, b.x0 + b.barW, b.y + b.h + 4);
-          if (b.glitchFrames > 0) {
-            for (var j = 0; j < 3; j++) {
-              var gw = b.barW * rand(0.08, 0.55);
-              ctx.fillStyle = "rgba(255,0,0,0.5)";
-              ctx.fillRect(b.x0 + rand(0, b.barW - gw), b.y + rand(-2, 2), gw, 1);
-            }
-            b.glitchFrames--;
-          }
-        }
-      }
-    
-      function drawVignette() {
-        var cx = cw * 0.5, cy = ch * 0.5, rad = Math.max(cw, ch) * 0.75;
-        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
-        g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)");
-        ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
-      }
-    
-      function frame() {
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cw, ch);
-        updateBars(); updateRings(); drawBars(); drawRings(); drawVignette();
-        requestAnimationFrame(frame);
-      }
-    
-      resizeCanvas();
-      window.addEventListener("resize", resizeCanvas);
-      window.addEventListener("mousemove", function(ev) {
-        var rect = canvas.getBoundingClientRect();
-        mouseX = ev.clientX - rect.left; mouseY = ev.clientY - rect.top;
-        mouseInCanvas = ev.clientX >= rect.left && ev.clientX <= rect.right &&
-          ev.clientY >= rect.top && ev.clientY <= rect.bottom;
-      });
+    }
+
+    function drawVignette() {
+      var cx = cw * 0.5, cy = ch * 0.5, rad = Math.max(cw, ch) * 0.75;
+      var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0.35)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, cw, ch);
+    }
+
+    function frame() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(0, 0, cw, ch);
+      updateScoreCards();
+      drawScoreCards();
+      updateWaveform();
+      drawWaveform();
+      drawVignette();
       requestAnimationFrame(frame);
-    })();
-    </script>
+    }
+
+    window.setWaveformAnalyzing = function (bool) {
+      waveformAnalyzing = !!bool;
+      var label = document.getElementById("generating-label");
+      if (label) label.classList.toggle("visible", waveformAnalyzing);
+    };
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    requestAnimationFrame(frame);
+  })();
+</script>
 </body>
 </html>
