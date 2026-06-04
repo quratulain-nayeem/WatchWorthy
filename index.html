@@ -648,12 +648,23 @@
     }
 
     .pill {
+      appearance: none;
+      font-family: inherit;
       font-size: 12px;
       padding: 6px 10px;
       background: #1a1a1a;
       border: 1px solid var(--border);
       border-radius: 999px;
       color: #cccccc;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .pill:hover,
+    .pill.active {
+      background: #222222;
+      border-color: #444444;
+      color: var(--white);
     }
 
     .timestamps {
@@ -684,6 +695,17 @@
     .ts-chip:hover {
       border-color: #444444;
       background: #222222;
+    }
+
+    .comment-chip {
+      display: block;
+      font-size: 13px;
+      padding: 10px 12px;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--white);
+      line-height: 1.45;
     }
 
     .filler-label {
@@ -720,6 +742,14 @@
       min-width: 0;
     }
 
+    .rag-title {
+      margin: 4px 0 16px;
+      font-size: 34px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--white);
+    }
+
     @media (max-width: 768px) {
       .score-card,
       .detail-card,
@@ -727,13 +757,17 @@
         grid-column: auto;
         grid-row: auto;
       }
+
+      .rag-title {
+        font-size: 28px;
+      }
     }
 
     .rag-input-row {
       display: flex;
       align-items: stretch;
       gap: 0;
-      min-height: 59px;
+      min-height: 76px;
       border-radius: 10px;
       overflow: hidden;
       background: #111111;
@@ -794,9 +828,9 @@
       border: 0;
       background: #111111;
       color: var(--white);
-      font-size: 15px;
+      font-size: 16px;
       font-family: inherit;
-      padding: 18px 18px;
+      padding: 24px 18px;
       outline: none;
       position: relative;
       z-index: 1;
@@ -814,7 +848,7 @@
       font-weight: 600;
       font-size: 15px;
       padding: 0 28px;
-      min-width: 88px;
+      min-width: 92px;
       cursor: pointer;
       transition: background 0.2s ease;
       border-radius: 0 8px 8px 0;
@@ -839,10 +873,31 @@
       background: #111111;
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px 18px;
+      padding: 18px 20px;
       font-size: 14px;
       color: var(--white);
-      line-height: 1.55;
+      line-height: 1.6;
+    }
+
+    .answer-card p {
+      margin: 0 0 12px;
+    }
+
+    .answer-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .answer-card ul {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+
+    .answer-card li {
+      margin-bottom: 8px;
+    }
+
+    .answer-card li:last-child {
+      margin-bottom: 0;
     }
 
     .rag-section .answer-loading {
@@ -851,6 +906,154 @@
       gap: 6px;
       color: var(--muted);
       margin-top: 16px;
+    }
+
+    .recommend-section {
+      margin-top: 32px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+
+    .recommend-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .recommend-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .recommend-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .recommend-input-row {
+      display: flex;
+      align-items: stretch;
+      min-height: 58px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #111111;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.12);
+    }
+
+    .recommend-input-row input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: #111111;
+      color: var(--white);
+      font-size: 15px;
+      font-family: inherit;
+      padding: 17px 18px;
+      outline: none;
+    }
+
+    .recommend-input-row .btn-find {
+      flex-shrink: 0;
+      border: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 0, 0, 0.08);
+      color: var(--white);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 15px;
+      min-width: 96px;
+      padding: 0 24px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .recommend-input-row .btn-find:hover:not(:disabled) {
+      background: rgba(255, 0, 0, 0.18);
+    }
+
+    .recommend-input-row .btn-find:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .recommend-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .recommend-card {
+      display: block;
+      min-width: 0;
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .recommend-card:hover {
+      border-color: #444444;
+      transform: translateY(-1px);
+    }
+
+    .recommend-thumb {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+      background: #1a1a1a;
+    }
+
+    .recommend-body {
+      padding: 12px;
+    }
+
+    .recommend-card-title {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .recommend-channel {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .recommend-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .recommend-chip {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      color: #cccccc;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 7px;
+    }
+
+    @media (max-width: 768px) {
+      .recommend-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .recommend-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     .answer-loading.visible {
@@ -1104,12 +1307,12 @@
         </div>
         <p class="section-label">Comment Breakdown</p>
         <div class="breakdown-pills">
-          <span class="pill">🟢 Understanding 54%</span>
-          <span class="pill">🔴 Confusion 21%</span>
+          <span class="pill">🟢 Helpful 54%</span>
+          <span class="pill">🔴 Confused 21%</span>
           <span class="pill">🟡 Outdated 15%</span>
-          <span class="pill">⚪ Irrelevant 10%</span>
+          <span class="pill">⚪ Off-topic 10%</span>
         </div>
-        <p class="section-label">Key Timestamps</p>
+        <p class="section-label" id="detail-list-label">Key Timestamps</p>
         <ul class="timestamps" id="timestamps-list">
           <li>
             <a class="ts-chip" href="#" data-seconds="134">02:14 — Introduction to loops</a>
@@ -1132,6 +1335,7 @@
       </div>
 
       <div class="rag-section" id="rag-section">
+        <h2 class="rag-title">Got a question?</h2>
         <div class="rag-input-row">
           <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
           <button type="button" class="btn-ask" id="btn-ask">Ask</button>
@@ -1146,6 +1350,18 @@
         </div>
       </div>
     </div>
+
+    <section class="recommend-section" id="recommend-section">
+      <div class="recommend-head">
+        <h2 class="recommend-title">Find similar quality videos</h2>
+        <div class="recommend-status" id="recommend-status" aria-live="polite"></div>
+      </div>
+      <div class="recommend-input-row">
+        <input type="text" id="recommend-query" placeholder='What are you looking for? e.g. "async in Python"' />
+        <button type="button" class="btn-find" id="btn-find">Find</button>
+      </div>
+      <div class="recommend-grid" id="recommend-grid"></div>
+    </section>
   </main>
 
   <div class="how-modal" id="how-modal" aria-hidden="true">
@@ -1226,11 +1442,17 @@
     const answerCard = document.getElementById("answer-card");
     const answerLoading = document.getElementById("answer-loading");
     const answerText = document.getElementById("answer-text");
+    const recommendQuery = document.getElementById("recommend-query");
+    const btnFind = document.getElementById("btn-find");
+    const recommendStatus = document.getElementById("recommend-status");
+    const recommendGrid = document.getElementById("recommend-grid");
   
     const R = 42;
     const CIRC = 2 * Math.PI * R;
   
     let currentVideoId = null;
+    let lastAnalysisData = null;
+    let activeCommentCategory = null;
   
     // ── Validation ──────────────────────────────────────────────────────────
     function isYouTubeUrl(str) {
@@ -1289,9 +1511,209 @@
       else if (score >= 4) { verdictEl.textContent = "Borderline"; verdictEl.classList.add("warn"); }
       else { verdictEl.textContent = "Skip It"; verdictEl.classList.add("bad"); }
     }
+
+    function titleCase(label) {
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }
+
+    function formatTime(seconds) {
+      const total = Math.max(0, Number(seconds) || 0);
+      const mins = Math.floor(total / 60).toString().padStart(2, "0");
+      const secs = Math.floor(total % 60).toString().padStart(2, "0");
+      return `${mins}:${secs}`;
+    }
+
+    function renderTimestamps(data) {
+      const detailLabel = document.getElementById("detail-list-label");
+      const tsList = document.getElementById("timestamps-list");
+      activeCommentCategory = null;
+      detailLabel.textContent = "Key Timestamps";
+      tsList.innerHTML = "";
+
+      document.querySelectorAll(".breakdown-pills .pill").forEach(pill => {
+        pill.classList.remove("active");
+      });
+
+      if (data.timestamps && data.timestamps.length > 0) {
+        data.timestamps.forEach(ts => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.className = "ts-chip";
+          a.href = `https://www.youtube.com/watch?v=${data.video_id}&t=${ts.seconds}s`;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = `${formatTime(ts.seconds)} — ${ts.label}`;
+          li.appendChild(a);
+          tsList.appendChild(li);
+        });
+      } else {
+        tsList.innerHTML = "<li style='color:#666;font-size:13px'>No timestamps detected</li>";
+      }
+    }
+
+    function renderCommentCategory(label, data) {
+      const detailLabel = document.getElementById("detail-list-label");
+      const tsList = document.getElementById("timestamps-list");
+      const comments = (data.comment_examples && data.comment_examples[label]) || [];
+
+      activeCommentCategory = label;
+      detailLabel.textContent = `${titleCase(label)} Comments`;
+      tsList.innerHTML = "";
+
+      document.querySelectorAll(".breakdown-pills .pill").forEach(pill => {
+        pill.classList.toggle("active", pill.dataset.category === label);
+      });
+
+      if (comments.length > 0) {
+        comments.forEach(comment => {
+          const li = document.createElement("li");
+          const div = document.createElement("div");
+          div.className = "comment-chip";
+          div.textContent = comment;
+          li.appendChild(div);
+          tsList.appendChild(li);
+        });
+      } else {
+        tsList.innerHTML = `<li style='color:#666;font-size:13px'>No ${label} comments found</li>`;
+      }
+    }
+
+    function renderBreakdownPills(data) {
+      const pillContainer = document.querySelector(".breakdown-pills");
+      pillContainer.innerHTML = "";
+      const icons = { helpful: "🟢", confused: "🔴", outdated: "🟡", off_topic: "⚪" };
+      const names = { helpful: "Helpful", confused: "Confused", outdated: "Outdated", off_topic: "Off-topic" };
+      const pcts = data.comment_pcts || {};
+
+      for (const [label, pct] of Object.entries(pcts)) {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "pill";
+        pill.dataset.category = label;
+        pill.textContent = `${icons[label] || "•"} ${names[label] || titleCase(label)} ${pct}%`;
+        pill.addEventListener("click", () => {
+          if (activeCommentCategory === label) renderTimestamps(data);
+          else renderCommentCategory(label, data);
+        });
+        pillContainer.appendChild(pill);
+      }
+    }
+
+    function resetRecommendations() {
+      if (recommendStatus) recommendStatus.textContent = "";
+      if (recommendGrid) recommendGrid.innerHTML = "";
+      if (recommendQuery) recommendQuery.value = "";
+    }
+
+    function renderRecommendations(items) {
+      recommendGrid.innerHTML = "";
+      if (!items || items.length === 0) {
+        recommendStatus.textContent = "No recommendations found.";
+        return;
+      }
+
+      recommendStatus.textContent = `${items.length} recommendations ranked by quality and relevance`;
+      items.forEach(item => {
+        const card = document.createElement("a");
+        card.className = "recommend-card";
+        card.href = item.url;
+        card.target = "_blank";
+        card.rel = "noopener noreferrer";
+
+        const img = document.createElement("img");
+        img.className = "recommend-thumb";
+        img.src = item.thumbnail || "";
+        img.alt = "";
+
+        const body = document.createElement("div");
+        body.className = "recommend-body";
+
+        const title = document.createElement("p");
+        title.className = "recommend-card-title";
+        title.textContent = item.title || "Untitled video";
+
+        const channel = document.createElement("p");
+        channel.className = "recommend-channel";
+        channel.textContent = item.channel || "Unknown channel";
+
+        const meta = document.createElement("div");
+        meta.className = "recommend-meta";
+
+        const quality = document.createElement("span");
+        quality.className = "recommend-chip";
+        quality.textContent = `${Number(item.score || 0).toFixed(1)} quality`;
+
+        const relevance = document.createElement("span");
+        relevance.className = "recommend-chip";
+        relevance.textContent = `${Number(item.relevance || 0).toFixed(1)} match`;
+
+        meta.append(quality, relevance);
+        body.append(title, channel, meta);
+        card.append(img, body);
+        recommendGrid.appendChild(card);
+      });
+    }
+
+    function renderAnswer(text) {
+      const raw = String(text || "").trim();
+      answerText.innerHTML = "";
+      if (!raw) {
+        answerText.textContent = "No answer found.";
+        return;
+      }
+
+      const normalized = raw
+        .replace(/\r/g, "")
+        .replace(/\s+\*/g, "\n*")
+        .replace(/\s+-\s+/g, "\n- ");
+      const lines = normalized.split("\n").map(line => line.trim()).filter(Boolean);
+      const bullets = [];
+      const paragraphs = [];
+
+      lines.forEach(line => {
+        if (line.startsWith("*") || line.startsWith("-")) {
+          const clean = line.replace(/^[-*]\s*/, "").trim();
+          if (clean) bullets.push(clean);
+        } else {
+          paragraphs.push(line);
+        }
+      });
+
+      paragraphs.forEach(paragraph => {
+        const p = document.createElement("p");
+        p.textContent = paragraph;
+        answerText.appendChild(p);
+      });
+
+      if (bullets.length > 0) {
+        const ul = document.createElement("ul");
+        bullets.forEach(item => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          ul.appendChild(li);
+        });
+        answerText.appendChild(ul);
+      }
+
+      if (!answerText.childNodes.length) {
+        answerText.textContent = raw;
+      }
+    }
+
+    async function readResponseBody(res) {
+      const text = await res.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { detail: text };
+      }
+    }
   
     // ── Populate UI with real data ───────────────────────────────────────────
     function populateResults(data) {
+      lastAnalysisData = data;
+      activeCommentCategory = null;
       // Thumbnail
       let thumbEl = document.querySelector(".thumb-placeholder");
 if (!thumbEl) thumbEl = document.querySelector(".detail-card img");
@@ -1309,38 +1731,8 @@ if (data.thumbnail && thumbEl) {
       document.getElementById("stat-likes").textContent = "Likes: " + Number(data.likes).toLocaleString();
       document.getElementById("stat-comments").textContent = "Comments: " + Number(data.comment_count).toLocaleString();
   
-      // Comment breakdown pills
-      const pillContainer = document.querySelector(".breakdown-pills");
-      pillContainer.innerHTML = "";
-      const icons = { understanding: "🟢", confusion: "🔴", outdated: "🟡", irrelevant: "⚪" };
-      const pcts = data.comment_pcts || {};
-      for (const [label, pct] of Object.entries(pcts)) {
-        const pill = document.createElement("span");
-        pill.className = "pill";
-        pill.textContent = `${icons[label] || "•"} ${label.charAt(0).toUpperCase() + label.slice(1)} ${pct}%`;
-        pillContainer.appendChild(pill);
-      }
-  
-      // Timestamps
-      const tsList = document.getElementById("timestamps-list");
-      tsList.innerHTML = "";
-      if (data.timestamps && data.timestamps.length > 0) {
-        data.timestamps.forEach(ts => {
-          const li = document.createElement("li");
-          const a = document.createElement("a");
-          a.className = "ts-chip";
-          a.href = `https://www.youtube.com/watch?v=${data.video_id}&t=${ts.seconds}s`;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          const mins = Math.floor(ts.seconds / 60).toString().padStart(2, "0");
-          const secs = (ts.seconds % 60).toString().padStart(2, "0");
-          a.textContent = `${mins}:${secs} — ${ts.label}`;
-          li.appendChild(a);
-          tsList.appendChild(li);
-        });
-      } else {
-        tsList.innerHTML = "<li style='color:#666;font-size:13px'>No timestamps detected</li>";
-      }
+      renderBreakdownPills(data);
+      renderTimestamps(data);
   
       // Filler bar
       document.getElementById("filler-pct-label").textContent = data.filler_pct + "%";
@@ -1389,9 +1781,10 @@ if (data.thumbnail && thumbEl) {
   document.querySelector(".input-wrap").classList.remove("done");        // ← ADD
   resultsEl.classList.remove("visible");
   loadingEl.classList.add("visible");
-  answerCard.style.display = "none";
-  answerText.textContent = "";
-  answerLoading.classList.remove("visible");
+      answerCard.style.display = "none";
+      answerText.textContent = "";
+      answerLoading.classList.remove("visible");
+      resetRecommendations();
 
   if (window.setWaveformAnalyzing) window.setWaveformAnalyzing(true);
 
@@ -1403,11 +1796,11 @@ if (data.thumbnail && thumbEl) {
     });
 
     if (!res.ok) {
-      const err = await res.json();
+      const err = await readResponseBody(res);
       throw new Error(err.detail || "Analysis failed");
     }
 
-    const data = await res.json();
+    const data = await readResponseBody(res);
     currentVideoId = data.video_id;
 
     const inputWrap = document.querySelector(".input-wrap");
@@ -1456,16 +1849,63 @@ if (data.thumbnail && thumbEl) {
           body: JSON.stringify({ video_id: currentVideoId, question }),
         });
   
-        const data = await res.json();
+        const data = await readResponseBody(res);
+        if (!res.ok) {
+          throw new Error(data.detail || "Answer generation failed.");
+        }
         answerLoading.classList.remove("visible");
-        answerText.textContent = data.answer || "No answer found.";
+        renderAnswer(data.answer);
         answerCard.style.display = "block";
-      } catch {
+      } catch (err) {
         answerLoading.classList.remove("visible");
-        answerText.textContent = "Something went wrong. Try again.";
+        renderAnswer(err.message || "Something went wrong. Try again.");
         answerCard.style.display = "block";
       } finally {
         btnAsk.disabled = false;
+      }
+    });
+
+    btnFind.addEventListener("click", async function () {
+      if (!currentVideoId || !lastAnalysisData) return;
+
+      const query = recommendQuery.value.trim();
+      recommendStatus.textContent = "Finding similar quality videos...";
+      recommendGrid.innerHTML = "";
+      btnFind.disabled = true;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
+      try {
+        const res = await fetch("/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            video_id: currentVideoId,
+            title: lastAnalysisData.title,
+            query,
+          }),
+          signal: controller.signal,
+        });
+
+        const data = await readResponseBody(res);
+        if (!res.ok) {
+          throw new Error(data.detail || "Recommendation search failed.");
+        }
+        renderRecommendations(data.recommendations || []);
+      } catch (err) {
+        recommendStatus.textContent = err.name === "AbortError"
+          ? "Recommendation search timed out. Try a more specific search."
+          : (err.message || "Recommendation search failed.");
+      } finally {
+        window.clearTimeout(timeoutId);
+        btnFind.disabled = false;
+      }
+    });
+
+    recommendQuery.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        btnFind.click();
       }
     });
   

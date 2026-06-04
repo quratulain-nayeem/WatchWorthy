@@ -10,20 +10,21 @@ import json
 import pathlib
 import requests
 import numpy as np
+from html import unescape
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
-from groq import Groq
+import google.generativeai as genai
 from spellchecker import SpellChecker
 
 # ── Env ──────────────────────────────────────────────────────────────────────
 load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-GROQ_API_KEY    = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY  = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -40,7 +41,9 @@ print("Loading models...")
 
 classifier  = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 embedder    = SentenceTransformer("all-MiniLM-L6-v2")
-groq_client = Groq(api_key=GROQ_API_KEY)
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
 print("Models ready.")
 
@@ -99,7 +102,7 @@ def correct_query(text: str, spell: SpellChecker) -> str:
             corrected.append(word.replace(stripped, candidate))
     result = " ".join(corrected)
     if result != text:
-        print(f"Query corrected: '{text}' → '{result}'")
+        print(f"Query corrected: '{text}' -> '{result}'")
     return result
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -140,6 +143,39 @@ def fetch_video_metadata(video_id: str) -> dict:
     }
 
 
+def search_youtube_videos(query: str, exclude_video_id: str | None = None, max_results: int = 8) -> list[dict]:
+    url = "https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "part": "snippet",
+        "q": query,
+        "type": "video",
+        "maxResults": max_results,
+        "key": YOUTUBE_API_KEY,
+    }
+    r = requests.get(url, params=params, timeout=10)
+    r.raise_for_status()
+    videos = []
+    for item in r.json().get("items", []):
+        video_id = item.get("id", {}).get("videoId")
+        if not video_id or video_id == exclude_video_id:
+            continue
+        snippet = item.get("snippet", {})
+        videos.append({
+            "video_id": video_id,
+            "title": snippet.get("title", ""),
+            "channel": snippet.get("channelTitle", ""),
+            "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+        })
+    return videos
+
+
+def clean_comment(text: str) -> str:
+    text = unescape(text or "")
+    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def fetch_comments(video_id: str, max_results: int = 50) -> list[str]:
     url = (
         "https://www.googleapis.com/youtube/v3/commentThreads"
@@ -151,29 +187,55 @@ def fetch_comments(video_id: str, max_results: int = 50) -> list[str]:
         return []
     items = r.json().get("items", [])
     return [
-        i["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+        clean_comment(i["snippet"]["topLevelComment"]["snippet"]["textDisplay"])
         for i in items
     ]
 
 
-def fetch_transcript(video_id: str) -> str | None:
+def normalize_transcript_chunks(chunks) -> list[dict]:
+    normalized = []
+    for c in chunks:
+        text = getattr(c, "text", None)
+        start = getattr(c, "start", None)
+        duration = getattr(c, "duration", None)
+        if isinstance(c, dict):
+            text = c.get("text", text)
+            start = c.get("start", start)
+            duration = c.get("duration", duration)
+        if text is None or start is None:
+            continue
+        normalized.append({
+            "text": str(text).strip(),
+            "start": float(start),
+            "duration": float(duration or 0),
+        })
+    return [c for c in normalized if c["text"]]
+
+
+def transcript_text(chunks: list[dict] | None) -> str | None:
+    if not chunks:
+        return None
+    return " ".join(c["text"] for c in chunks)
+
+
+def fetch_transcript(video_id: str) -> list[dict] | None:
     try:
         ytt             = YouTubeTranscriptApi()
         transcript_list = ytt.list(video_id)
         try:
             chunks = transcript_list.find_manually_created_transcript(["en"]).fetch()
-            return " ".join(c.text for c in chunks)
+            return normalize_transcript_chunks(chunks)
         except Exception:
             pass
         try:
             chunks = transcript_list.find_generated_transcript(["en"]).fetch()
-            return " ".join(c.text for c in chunks)
+            return normalize_transcript_chunks(chunks)
         except Exception:
             pass
         try:
             transcript = next(iter(transcript_list))
             chunks     = transcript.fetch()
-            return " ".join(c.text for c in chunks)
+            return normalize_transcript_chunks(chunks)
         except Exception:
             pass
         return None
@@ -189,35 +251,68 @@ def score_engagement(views: int, likes: int) -> float:
     return round(min(10.0, (ratio / 0.04) * 10), 2)
 
 
-def score_sentiment(comments: list[str]) -> tuple[float, dict]:
+COMMENT_LABELS = {
+    "helpful": "helpful or understood",
+    "confused": "confused or asking for clarification",
+    "outdated": "outdated or no longer accurate",
+    "off_topic": "off-topic or unrelated",
+}
+
+
+def score_sentiment(comments: list[str]) -> tuple[float, dict, dict]:
     if not comments:
-        return 5.0, {}
-    labels = ["understanding", "confusion", "outdated", "irrelevant"]
-    counts = {l: 0 for l in labels}
+        return 5.0, {}, {}
+    candidate_labels = list(COMMENT_LABELS.values())
+    label_lookup = {v: k for k, v in COMMENT_LABELS.items()}
+    counts = {l: 0 for l in COMMENT_LABELS}
+    examples = {l: [] for l in COMMENT_LABELS}
     for c in comments[:30]:
-        result = classifier(c, candidate_labels=labels)
-        counts[result["labels"][0]] += 1
+        result = classifier(c, candidate_labels=candidate_labels)
+        label = label_lookup[result["labels"][0]]
+        counts[label] += 1
+        if len(examples[label]) < 6:
+            examples[label].append(c)
     total = sum(counts.values()) or 1
     pcts  = {k: round(v / total * 100) for k, v in counts.items()}
     score = (
-        counts["understanding"] * 1.0
-        - counts["confusion"]   * 0.5
-        - counts["outdated"]    * 0.4
-        - counts["irrelevant"]  * 0.1
+        counts["helpful"]   * 1.0
+        - counts["confused"]  * 0.5
+        - counts["outdated"]  * 0.4
+        - counts["off_topic"] * 0.1
     ) / total * 10
-    return round(max(0.0, min(10.0, score)), 2), pcts
+    return round(max(0.0, min(10.0, score)), 2), pcts, examples
 
 
-def score_content(transcript: str | None, title: str) -> tuple[float, float, list[dict]]:
-    if not transcript:
+def build_timed_segments(transcript_chunks: list[dict], target_segments: int = 20) -> list[dict]:
+    total_words = sum(len(c["text"].split()) for c in transcript_chunks)
+    window = max(1, total_words // target_segments)
+    segments = []
+    current_words = []
+    current_start = None
+    for chunk in transcript_chunks:
+        if current_start is None:
+            current_start = chunk["start"]
+        current_words.extend(chunk["text"].split())
+        if len(current_words) >= window:
+            segments.append({"start": current_start, "text": " ".join(current_words)})
+            current_words = []
+            current_start = None
+    if current_words and current_start is not None:
+        segments.append({"start": current_start, "text": " ".join(current_words)})
+    return segments
+
+
+def score_content(transcript_chunks: list[dict] | None, title: str) -> tuple[float, float, list[dict]]:
+    if not transcript_chunks:
         return 5.0, 0.0, []
+    transcript = transcript_text(transcript_chunks)
     words  = transcript.split()
     n      = len(words)
     if n < 50:
         return 5.0, 0.0, []
-    window = max(1, n // 20)
-    chunks = [" ".join(words[i:i + window]) for i in range(0, n - window, window)]
-    if len(chunks) < 3:
+    segments = build_timed_segments(transcript_chunks)
+    chunks = [s["text"] for s in segments]
+    if len(segments) < 3:
         return 5.0, 0.0, []
     chunk_embs      = embedder.encode(chunks, convert_to_tensor=False)
     chunk_embs_norm = normalize(chunk_embs)
@@ -251,7 +346,10 @@ def score_content(transcript: str | None, title: str) -> tuple[float, float, lis
     # Timestamps
     chunk_novelty = [0.0] + [1.0 - consecutive_sims[i - 1] for i in range(1, len(chunks))]
     top_indices   = sorted(sorted(range(len(chunk_novelty)), key=lambda i: chunk_novelty[i], reverse=True)[:5])
-    timestamps    = [{"seconds": idx * window * 2, "label": chunks[idx][:60] + "…"} for idx in top_indices]
+    timestamps    = [
+        {"seconds": int(segments[idx]["start"]), "label": chunks[idx][:60] + "…"}
+        for idx in top_indices
+    ]
     return depth_score, filler_pct, timestamps
 
 
@@ -259,6 +357,56 @@ def compute_final_score(depth: float, sentiment: float, engagement: float, has_t
     if has_transcript:
         return round(depth * 0.4 + sentiment * 0.3 + engagement * 0.3, 2)
     return round(sentiment * 0.5 + engagement * 0.5, 2)
+
+
+def score_video(video_id: str) -> dict:
+    meta = fetch_video_metadata(video_id)
+    comments = fetch_comments(video_id, max_results=25)
+    transcript_chunks = fetch_transcript(video_id)
+    transcript = transcript_text(transcript_chunks)
+    if transcript:
+        transcript_cache[video_id] = transcript
+        save_cache()
+    engagement_score = score_engagement(meta["views"], meta["likes"])
+    sentiment_score, _, _ = score_sentiment(comments)
+    depth_score, filler_pct, _ = score_content(transcript_chunks, meta["title"])
+    final_score = compute_final_score(
+        depth_score,
+        sentiment_score,
+        engagement_score,
+        has_transcript=transcript is not None,
+    )
+    return {
+        **meta,
+        "score": final_score,
+        "depth": depth_score,
+        "sentiment": sentiment_score,
+        "engagement": engagement_score,
+        "filler_pct": filler_pct,
+        "has_transcript": transcript is not None,
+        "transcript": transcript or "",
+    }
+
+
+def relevance_score(intent: str, title: str, transcript: str = "") -> float:
+    target = f"{title}. {transcript[:1200]}".strip()
+    if not intent or not target:
+        return 5.0
+    embs = embedder.encode([intent, target], convert_to_tensor=False)
+    a = embs[0] / (np.linalg.norm(embs[0]) + 1e-9)
+    b = embs[1] / (np.linalg.norm(embs[1]) + 1e-9)
+    sim = float(np.dot(a, b))
+    return round(max(0.0, min(10.0, (sim + 1.0) * 5.0)), 2)
+
+
+def recommendation_blend(quality: float, relevance: float) -> float:
+    return round(quality * 0.65 + relevance * 0.35, 2)
+
+
+def estimated_quality_score(meta: dict) -> float:
+    engagement = score_engagement(meta["views"], meta["likes"])
+    comment_signal = min(10.0, np.log10(max(meta["comment_count"], 1) + 1) * 2.4)
+    return round(engagement * 0.75 + comment_signal * 0.25, 2)
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
@@ -271,6 +419,12 @@ class AnalyzeRequest(BaseModel):
     url: str
 
 
+class RecommendRequest(BaseModel):
+    video_id: str
+    query: str | None = None
+    title: str | None = None
+
+
 @app.post("/analyze")
 async def analyze(req: AnalyzeRequest):
     try:
@@ -279,14 +433,15 @@ async def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
     meta       = fetch_video_metadata(video_id)
     comments   = fetch_comments(video_id)
-    transcript = fetch_transcript(video_id)
+    transcript_chunks = fetch_transcript(video_id)
+    transcript = transcript_text(transcript_chunks)
     if transcript:
         transcript_cache[video_id] = transcript
         save_cache()
-        print(f"✅ Cached transcript for: {video_id}")
+        print(f"Cached transcript for: {video_id}")
     engagement_score                    = score_engagement(meta["views"], meta["likes"])
-    sentiment_score, comment_pcts       = score_sentiment(comments)
-    depth_score, filler_pct, timestamps = score_content(transcript, meta["title"])
+    sentiment_score, comment_pcts, comment_examples = score_sentiment(comments)
+    depth_score, filler_pct, timestamps = score_content(transcript_chunks, meta["title"])
     final_score = compute_final_score(depth_score, sentiment_score, engagement_score, has_transcript=transcript is not None)
     return JSONResponse({
         "video_id":       video_id,
@@ -302,8 +457,51 @@ async def analyze(req: AnalyzeRequest):
         "engagement":     engagement_score,
         "filler_pct":     filler_pct,
         "comment_pcts":   comment_pcts,
+        "comment_examples": comment_examples,
         "timestamps":     timestamps,
         "has_transcript": transcript is not None,
+    })
+
+
+@app.post("/recommend")
+async def recommend(req: RecommendRequest):
+    intent = (req.query or "").strip()
+    if not intent:
+        intent = (req.title or "").strip()
+    if not intent:
+        try:
+            intent = fetch_video_metadata(req.video_id)["title"]
+        except Exception:
+            raise HTTPException(status_code=400, detail="Add a search intent or analyze a video first.")
+
+    try:
+        search_results = search_youtube_videos(intent, exclude_video_id=req.video_id, max_results=6)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"YouTube recommendation search failed: {e}")
+
+    recommendations = []
+    for result in search_results:
+        try:
+            meta = fetch_video_metadata(result["video_id"])
+            quality = estimated_quality_score(meta)
+            relevance = relevance_score(intent, meta["title"])
+            recommendations.append({
+                "video_id": result["video_id"],
+                "title": meta["title"] or result["title"],
+                "channel": meta["channel"] or result["channel"],
+                "thumbnail": meta["thumbnail"] or result["thumbnail"],
+                "score": quality,
+                "relevance": relevance,
+                "recommendation_score": recommendation_blend(quality, relevance),
+                "url": f"https://www.youtube.com/watch?v={result['video_id']}",
+            })
+        except Exception as e:
+            print(f"Recommendation skipped for {result['video_id']}: {e}")
+
+    recommendations.sort(key=lambda item: item["recommendation_score"], reverse=True)
+    return JSONResponse({
+        "intent": intent,
+        "recommendations": recommendations[:3],
     })
 
 # ── CAG constants ─────────────────────────────────────────────────────────────
@@ -378,8 +576,46 @@ def get_video_mean_embedding(video_id: str, sentences: list[str]) -> np.ndarray:
     if norm > 0:
         mean_emb = mean_emb / norm
     _mean_emb_cache[video_id] = mean_emb
-    print(f"📐 Cached mean embedding for: {video_id}")
+    print(f"Cached mean embedding for: {video_id}")
     return mean_emb
+
+
+def compact_context(selected_sentences: list[str], max_chars: int = 4500) -> str:
+    kept = []
+    total = 0
+    for sentence in selected_sentences:
+        cleaned = re.sub(r"\s+", " ", sentence).strip()
+        if not cleaned:
+            continue
+        extra = len(cleaned) + 1
+        if kept and total + extra > max_chars:
+            break
+        kept.append(cleaned)
+        total += extra
+    return " ".join(kept)
+
+
+def generate_answer_with_gemini(system: str, context: str, question: str) -> str:
+    if not GEMINI_API_KEY:
+        raise RuntimeError("Gemini API key is missing. Add GEMINI_API_KEY to your .env and restart Uvicorn.")
+    if GEMINI_API_KEY.startswith("gsk_"):
+        raise RuntimeError("GEMINI_API_KEY contains a Groq key. Replace it with a Gemini key from Google AI Studio.")
+    prompt = (
+        f"{system}\n\n"
+        f"TRANSCRIPT EXCERPTS:\n{context}\n\n"
+        f"QUESTION: {question}"
+    )
+    response = gemini_model.generate_content(
+        prompt,
+        generation_config={
+            "temperature": 0.0,
+            "max_output_tokens": 350,
+        },
+    )
+    answer = (getattr(response, "text", "") or "").strip()
+    if not answer:
+        raise RuntimeError("Gemini returned an empty answer.")
+    return answer
 
 
 class AskRequest(BaseModel):
@@ -424,18 +660,17 @@ async def ask(req: AskRequest):
         topic_sim  = float(util.cos_sim(anchor_emb, q_emb))
         if topic_sim > 0.50:
             is_summary = True   # treat ambiguous meta-questions as summary
-            print(f"📌 Summary path via semantic anchor (sim={topic_sim:.2f})")
+            print(f"Summary path via semantic anchor (sim={topic_sim:.2f})")
         else:
-            print(f"💬 Factual path (anchor_sim={topic_sim:.2f})")
+            print(f"Factual path (anchor_sim={topic_sim:.2f})")
 
     # ── Summary path ──────────────────────────────────────────────────────────
     if is_summary:
-        # Give more context — 12 evenly spaced sentences
-        step    = max(1, len(sentences) // 12)
-        indices = list(range(0, len(sentences), step))[:12]
-        context = " ".join(sentences[i] for i in indices)
+        step    = max(1, len(sentences) // 8)
+        indices = list(range(0, len(sentences), step))[:8]
+        context = compact_context([sentences[i] for i in indices], max_chars=3500)
         system  = SYSTEM_PROMPT_SUMMARY
-        print(f"📋 Summary path | sentences={len(indices)}")
+        print(f"Summary path | sentences={len(indices)}")
 
     # ── Topic confirmation path ───────────────────────────────────────────────
     elif is_topic:
@@ -443,38 +678,37 @@ async def ask(req: AskRequest):
         q_norm     = q_emb_np / (np.linalg.norm(q_emb_np) + 1e-9)
         video_mean = get_video_mean_embedding(req.video_id, sentences)
         video_sim  = float(np.dot(q_norm, video_mean))
-        print(f"🎯 Topic path | video_sim={video_sim:.3f} | threshold={VIDEO_SIM_THRESHOLD}")
+        print(f"Topic path | video_sim={video_sim:.3f} | threshold={VIDEO_SIM_THRESHOLD}")
         if video_sim < VIDEO_SIM_THRESHOLD:
             return JSONResponse({"answer": "This question is not related to the video you analyzed."})
-        step    = max(1, len(sentences) // 8)
-        indices = list(range(0, len(sentences), step))[:8]
-        context = " ".join(sentences[i] for i in indices)
+        step    = max(1, len(sentences) // 6)
+        indices = list(range(0, len(sentences), step))[:6]
+        context = compact_context([sentences[i] for i in indices], max_chars=3200)
         system  = SYSTEM_PROMPT_TOPIC
 
     # ── Factual path ──────────────────────────────────────────────────────────
     else:
         best_sim = float(sims.max())
-        print(f"🔍 Factual path | best_sim={best_sim:.3f} | threshold={SENTENCE_SIM_THRESHOLD}")
+        print(f"Factual path | best_sim={best_sim:.3f} | threshold={SENTENCE_SIM_THRESHOLD}")
         if best_sim < SENTENCE_SIM_THRESHOLD:
             return JSONResponse({"answer": "This question is not related to the video you analyzed."})
         top_indices = sorted(sims.topk(min(5, len(sentences))).indices.tolist())
-        context     = " ".join(sentences[i] for i in top_indices)
+        context     = compact_context([sentences[i] for i in top_indices], max_chars=3200)
         system      = SYSTEM_PROMPT_FACTUAL
 
-    # ── Groq ──────────────────────────────────────────────────────────────────
+    # ── Gemini ────────────────────────────────────────────────────────────────
     try:
-        chat = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": f"TRANSCRIPT EXCERPTS:\n{context}\n\nQUESTION: {req.question}"},
-            ],
-            temperature=0.0,
-            max_tokens=350,
-        )
-        answer = chat.choices[0].message.content.strip()
+        answer = generate_answer_with_gemini(system, context, req.question)
     except Exception as e:
-        print(f"Groq error: {e}")
-        raise HTTPException(status_code=500, detail="Answer generation failed.")
+        error_text = str(e)
+        print(f"Gemini error: {error_text}")
+        if "api key" in error_text.lower():
+            detail = "Gemini API key is missing or invalid. Check GEMINI_API_KEY in your .env and restart Uvicorn."
+        else:
+            detail = f"Answer generation failed: {error_text}"
+        return JSONResponse(
+            status_code=500,
+            content={"detail": detail},
+        )
 
     return JSONResponse({"answer": answer})
