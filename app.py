@@ -43,7 +43,7 @@ classifier  = pipeline("zero-shot-classification", model="facebook/bart-large-mn
 embedder    = SentenceTransformer("all-MiniLM-L6-v2")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+gemini_model = genai.GenerativeModel("gemini-2.0-flash-lite")
 
 print("Models ready.")
 
