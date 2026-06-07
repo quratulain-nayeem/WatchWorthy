@@ -356,17 +356,12 @@ async function analyze(url) {
 
   if (body) body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000);
-
   try {
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, transcript }),
-      signal: controller.signal,
     });
-    clearTimeout(timeoutId);
     console.log("[WatchWorthy] analyze status:", res.status);
 
     if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -375,13 +370,10 @@ async function analyze(url) {
     renderResults(data);
 
   } catch (err) {
-    clearTimeout(timeoutId);
     console.warn("[WatchWorthy] analyze request failed:", err?.name || err);
     if (body) {
       const message =
-        err.name === "AbortError"
-          ? "Analysis timed out. Hugging Face is still warming up or the transcript request is taking too long."
-          : err.message === "Failed to fetch"
+        err.message === "Failed to fetch"
           ? "Could not connect to Hugging Face. Make sure the Space is awake, then try again."
           : "Could not reach the server. Wait 30 seconds and click Analyze again.";
 
