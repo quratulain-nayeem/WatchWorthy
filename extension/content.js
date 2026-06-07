@@ -348,19 +348,13 @@ async function analyze(url) {
   currentVideoId = videoId;
 
   const body = document.getElementById("ww-body");
-  if (body) body.innerHTML = `<div class="ww-loading">Fetching transcript...</div>`;
-
-  // Fetch transcript client-side first
-  const transcript = await fetchTranscriptFromYouTube(videoId);
-  console.log("[WatchWorthy] transcript length:", transcript?.length || 0);
-
   if (body) body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
 
   try {
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, transcript }),
+      body: JSON.stringify({ url }),
     });
     console.log("[WatchWorthy] analyze status:", res.status);
 
