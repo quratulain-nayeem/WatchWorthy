@@ -758,12 +758,25 @@ class AskRequest(BaseModel):
 @app.post("/ask")
 async def ask(req: AskRequest):
     transcript = transcript_cache.get(req.video_id)
+
     if not transcript:
-        raise HTTPException(status_code=404, detail="Transcript not available for this video.")
+        chunks = fetch_transcript(req.video_id)
+        transcript = transcript_text(chunks)
+
+        if transcript:
+            transcript_cache[req.video_id] = transcript
+            save_cache()
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Transcript not available for this video."
+            )
 
     # Spell correction
-    spell        = build_spell_checker(transcript)
+    spell = build_spell_checker(transcript)
     req.question = correct_query(req.question, spell)
+
+    ...
 
     # Split transcript into sentences
     sentences = [

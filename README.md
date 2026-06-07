@@ -1,6 +1,6 @@
----
+﻿---
 title: WatchWorthy
-emoji: "WW"
+emoji: "📺"
 colorFrom: indigo
 colorTo: red
 sdk: docker
@@ -415,3 +415,4 @@ The extension should not store API keys in browser code. API keys should remain 
 ## License
 
 Released under the MIT License.
+
