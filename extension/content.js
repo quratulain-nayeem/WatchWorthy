@@ -351,13 +351,73 @@ function parseJsonValueAfter(text, marker) {
 }
 
 function getCaptionTracks(html) {
-  const playerResponse = parseJsonValueAfter(html, "ytInitialPlayerResponse");
+  const playerResponse =
+    parseJsonValueAfter(html, "ytInitialPlayerResponse") ||
+    parseEscapedPlayerResponse(html);
   const tracksFromPlayer =
     playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
 
   if (Array.isArray(tracksFromPlayer)) return tracksFromPlayer;
 
   const tracks = parseJsonValueAfter(html, "\"captionTracks\":");
+  return Array.isArray(tracks) ? tracks : [];
+}
+
+function parseEscapedPlayerResponse(html) {
+  const match = html.match(/"player_response":"((?:\\.|[^"\\])*)"/);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(JSON.parse(`"${match[1]}"`));
+  } catch {
+    return null;
+  }
+}
+
+function getYtConfig(html) {
+  return parseJsonValueAfter(html, "ytcfg.set(") || {};
+}
+
+function getInnertubeClient(html) {
+  const cfg = getYtConfig(html);
+  const contextClient =
+    cfg?.INNERTUBE_CONTEXT?.client ||
+    cfg?.WEB_PLAYER_CONTEXT_CONFIGS?.WEB_PLAYER_CONTEXT_CONFIG?.context?.client;
+
+  return {
+    apiKey:
+      cfg?.INNERTUBE_API_KEY ||
+      html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1],
+    client: contextClient || {
+      clientName: "WEB",
+      clientVersion:
+        cfg?.INNERTUBE_CLIENT_VERSION ||
+        html.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/)?.[1] ||
+        "2.20240101.00.00",
+    },
+  };
+}
+
+async function fetchPlayerResponse(videoId, html) {
+  const { apiKey, client } = getInnertubeClient(html);
+  if (!apiKey) return null;
+
+  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      context: { client },
+      videoId,
+    }),
+  });
+
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function getCaptionTracksFromPlayerResponse(playerResponse) {
+  const tracks =
+    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   return Array.isArray(tracks) ? tracks : [];
 }
 
@@ -401,14 +461,24 @@ async function fetchTranscriptFromYouTube(videoId) {
   try {
     const pageHtml = document.documentElement?.innerHTML || "";
     let tracks = getCaptionTracks(pageHtml);
+    let fetchedHtml = "";
 
     if (!tracks.length) {
       const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-      tracks = getCaptionTracks(await res.text());
+      fetchedHtml = await res.text();
+      tracks = getCaptionTracks(fetchedHtml);
+    }
+
+    if (!tracks.length) {
+      const playerResponse = await fetchPlayerResponse(videoId, fetchedHtml || pageHtml);
+      tracks = getCaptionTracksFromPlayerResponse(playerResponse);
     }
 
     const track = selectCaptionTrack(tracks);
-    if (!track?.baseUrl) return null;
+    if (!track?.baseUrl) {
+      console.warn("WatchWorthy: no caption tracks found for this video.");
+      return null;
+    }
 
     const trackUrl = new URL(track.baseUrl);
     trackUrl.searchParams.set("fmt", "json3");
