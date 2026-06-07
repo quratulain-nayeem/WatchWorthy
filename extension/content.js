@@ -59,6 +59,7 @@ function renderResults(data) {
   const filler = data.filler_pct ?? 0;
   const commentPcts = data.comment_pcts ?? {};
   const commentExamples = data.comment_examples ?? {};
+  const hasTranscript = data.has_transcript !== false;
 
   // Score ring circumference
   const radius = 36;
@@ -143,9 +144,10 @@ function renderResults(data) {
         class="ww-input"
         id="ww-qa-input"
         type="text"
-        placeholder="Ask anything about this video..."
+        placeholder="${hasTranscript ? "Ask anything about this video..." : "Transcript unavailable for Q&A"}"
+        ${hasTranscript ? "" : "disabled"}
       />
-      <button class="ww-btn" id="ww-qa-btn">Ask</button>
+      <button class="ww-btn" id="ww-qa-btn" ${hasTranscript ? "" : "disabled"}>Ask</button>
     </div>
     <div class="ww-answer-box" id="ww-answer-box"></div>
 
@@ -210,6 +212,11 @@ function renderResults(data) {
   qaBtn.addEventListener("click", async () => {
     const question = qaInput.value.trim();
     if (!question || !currentVideoId) return;
+    if (!hasTranscript) {
+      answerBox.textContent = "Transcript unavailable for this video, so Q&A cannot run.";
+      answerBox.classList.add("visible");
+      return;
+    }
 
     qaBtn.disabled = true;
     qaBtn.textContent = "...";
@@ -219,10 +226,14 @@ function renderResults(data) {
       const res = await fetch(`${API_BASE}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ video_id: currentVideoId, question }),
+        body: JSON.stringify({
+          video_id: currentVideoId,
+          question,
+          client_transcript_attempted: true,
+        }),
       });
       const json = await res.json();
-      answerBox.textContent = json.answer || "No answer returned.";
+      answerBox.textContent = json.answer || json.detail || "No answer returned.";
       answerBox.classList.add("visible");
     } catch (err) {
       answerBox.textContent = "Failed to get answer. Try again.";

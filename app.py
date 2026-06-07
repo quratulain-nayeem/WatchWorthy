@@ -767,6 +767,7 @@ def generate_answer_with_gemini(system: str, context: str, question: str) -> str
 class AskRequest(BaseModel):
     video_id: str
     question: str
+    client_transcript_attempted: bool = False
 
 
 @app.post("/ask")
@@ -774,6 +775,12 @@ async def ask(req: AskRequest):
     transcript = transcript_cache.get(req.video_id)
 
     if not transcript:
+        if req.client_transcript_attempted:
+            raise HTTPException(
+                status_code=404,
+                detail="Transcript not available for this video."
+            )
+
         chunks = fetch_transcript(req.video_id)
         transcript = transcript_text(chunks)
 
