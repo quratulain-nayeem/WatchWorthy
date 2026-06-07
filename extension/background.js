@@ -1,10 +1,17 @@
+let lastUrl = {};
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only fire when the URL changes and the tab is fully loaded
-  if (
-    changeInfo.status === "complete" &&
-    tab.url &&
-    tab.url.includes("youtube.com/watch")
-  ) {
-    chrome.tabs.sendMessage(tabId, { type: "VIDEO_CHANGED", url: tab.url });
+  if (!tab.url || !tab.url.includes("youtube.com/watch")) return;
+
+  // Fire on URL change OR on complete, whichever comes first
+  if (changeInfo.url || changeInfo.status === "complete") {
+    const url = tab.url;
+    if (lastUrl[tabId] === url) return; // same URL, ignore
+    lastUrl[tabId] = url;
+    chrome.tabs.sendMessage(tabId, { type: "VIDEO_CHANGED", url });
   }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  delete lastUrl[tabId];
 });

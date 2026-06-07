@@ -314,6 +314,37 @@ def transcript_text(chunks: list[dict] | None) -> str | None:
     return " ".join(c["text"] for c in chunks)
 
 
+def transcript_chunks_from_text(text: str) -> list[dict]:
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", text or "")
+        if s.strip()
+    ]
+    chunks = []
+    current = []
+    word_count = 0
+    start = 0.0
+    for sentence in sentences:
+        current.append(sentence)
+        word_count += len(sentence.split())
+        if word_count >= 45:
+            chunks.append({
+                "text": " ".join(current),
+                "start": start,
+                "duration": 12.0,
+            })
+            start += 12.0
+            current = []
+            word_count = 0
+    if current:
+        chunks.append({
+            "text": " ".join(current),
+            "start": start,
+            "duration": 12.0,
+        })
+    return chunks
+
+
 def fetch_transcript(video_id: str) -> list[dict] | None:
     try:
         ytt             = YouTubeTranscriptApi()
@@ -532,8 +563,8 @@ async def analyze(req: AnalyzeRequest):
     meta       = fetch_video_metadata(video_id)
     comments   = fetch_comments(video_id)
     if req.transcript:
-        transcript = req.transcript
-        transcript_chunks = [{"text": t, "start": 0.0, "duration": 0.0} for t in req.transcript.split(". ")]
+        transcript = re.sub(r"\s+", " ", req.transcript).strip()
+        transcript_chunks = transcript_chunks_from_text(transcript)
         transcript_cache[video_id] = transcript
         save_cache()
         print(f"Using client-provided transcript for: {video_id}")

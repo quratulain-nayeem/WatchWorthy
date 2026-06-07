@@ -351,10 +351,16 @@ async function analyze(url) {
   if (body) body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
 
   try {
+    const transcript = await fetchTranscriptFromYouTube(videoId);
+    console.log(
+      "[WatchWorthy] browser transcript:",
+      transcript ? `${transcript.length} chars` : "not available"
+    );
+
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, transcript }),
     });
     console.log("[WatchWorthy] analyze status:", res.status);
 
