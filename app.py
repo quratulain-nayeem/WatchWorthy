@@ -25,6 +25,14 @@ load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 GEMINI_API_KEY  = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+GEMINI_MODELS   = [
+    model.strip()
+    for model in os.getenv(
+        "GEMINI_MODELS",
+        "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash-lite,gemini-2.0-flash",
+    ).split(",")
+    if model.strip()
+]
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -43,7 +51,6 @@ classifier  = pipeline("zero-shot-classification", model="facebook/bart-large-mn
 embedder    = SentenceTransformer("all-MiniLM-L6-v2")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-2.0-flash-lite")
 
 print("Models ready.")
 
@@ -55,6 +62,7 @@ transcript_cache: dict[str, str] = (
     if CACHE_FILE.exists()
     else {}
 )
+video_profile_cache: dict[str, dict] = {}
 
 def save_cache():
     CACHE_FILE.write_text(json.dumps(transcript_cache))
@@ -62,7 +70,9 @@ def save_cache():
 # ── Spellchecker ─────────────────────────────────────────────────────────────
 QUERY_SLANG_WHITELIST = {
     "vid", "vids", "lol", "tbh", "imo", "btw", "ngl",
-    "abt", "rn", "yt", "bro", "bru", "pls", "plz", "thx"
+    "abt", "rn", "yt", "bro", "bru", "pls", "plz", "thx",
+    "api", "apis", "async", "backend", "frontend", "javascript",
+    "python", "react", "fastapi", "llm", "rag", "ai", "ml",
 }
 
 def build_spell_checker(transcript: str | None) -> SpellChecker:
@@ -104,6 +114,92 @@ def correct_query(text: str, spell: SpellChecker) -> str:
     if result != text:
         print(f"Query corrected: '{text}' -> '{result}'")
     return result
+
+
+def build_general_query_spell_checker(extra_text: str | None = None) -> SpellChecker:
+    sc = SpellChecker()
+    sc.word_frequency.load_words(QUERY_SLANG_WHITELIST)
+    if extra_text:
+        words = re.findall(r"[a-zA-Z]{3,}", extra_text.lower())
+        sc.word_frequency.load_words(words)
+    return sc
+
+
+def is_quota_error(error: Exception) -> bool:
+    text = str(error).lower()
+    return (
+        "resourceexhausted" in text
+        or "quota exceeded" in text
+        or "rate limit" in text
+        or "429" in text
+    )
+
+
+def keyword_text(text: str, limit: int = 24) -> str:
+    words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{2,}", (text or "").lower())
+    stop = {
+        "the", "and", "for", "that", "this", "with", "from", "your", "you",
+        "are", "was", "were", "have", "has", "had", "but", "not", "what",
+        "how", "why", "who", "when", "where", "video", "videos", "about",
+        "will", "can", "all", "just", "into", "than", "then", "them",
+    }
+    counts: dict[str, int] = {}
+    for word in words:
+        if word in stop or len(word) < 3:
+            continue
+        counts[word] = counts.get(word, 0) + 1
+    ranked = sorted(counts, key=lambda word: (-counts[word], word))
+    return " ".join(ranked[:limit])
+
+
+def build_video_profile(video_id: str, meta: dict, transcript: str | None, comments: list[str] | None) -> dict:
+    comment_sample = " ".join((comments or [])[:20])
+    source_text = " ".join([
+        meta.get("title", ""),
+        meta.get("channel", ""),
+        keyword_text(transcript or "", limit=36),
+        keyword_text(comment_sample, limit=24),
+        (transcript or "")[:2400],
+        comment_sample[:1200],
+    ]).strip()
+    profile = {
+        "video_id": video_id,
+        "title": meta.get("title", ""),
+        "channel": meta.get("channel", ""),
+        "source_text": source_text,
+    }
+    video_profile_cache[video_id] = profile
+    return profile
+
+
+def get_video_profile(video_id: str, fallback_title: str | None = None) -> dict:
+    profile = video_profile_cache.get(video_id)
+    if profile:
+        return profile
+    meta = fetch_video_metadata(video_id)
+    if fallback_title and not meta.get("title"):
+        meta["title"] = fallback_title
+    transcript = transcript_cache.get(video_id, "")
+    return build_video_profile(video_id, meta, transcript, comments=None)
+
+
+def embedding_similarity(left: str, right: str) -> float:
+    if not left.strip() or not right.strip():
+        return 0.0
+    embs = embedder.encode([left, right], convert_to_tensor=False)
+    a = embs[0] / (np.linalg.norm(embs[0]) + 1e-9)
+    b = embs[1] / (np.linalg.norm(embs[1]) + 1e-9)
+    return float(np.dot(a, b))
+
+
+def source_intent_match(intent: str, profile: dict) -> tuple[bool, float]:
+    source_text = profile.get("source_text", "")
+    sim = embedding_similarity(intent, source_text)
+    intent_terms = set(keyword_text(intent, limit=12).split())
+    source_terms = set(keyword_text(source_text, limit=80).split())
+    overlap = len(intent_terms & source_terms) / max(len(intent_terms), 1)
+    score = (sim * 0.75) + (overlap * 0.25)
+    return score >= 0.18, round(score, 3)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def extract_video_id(url: str) -> str:
@@ -439,6 +535,7 @@ async def analyze(req: AnalyzeRequest):
         transcript_cache[video_id] = transcript
         save_cache()
         print(f"Cached transcript for: {video_id}")
+    build_video_profile(video_id, meta, transcript, comments)
     engagement_score                    = score_engagement(meta["views"], meta["likes"])
     sentiment_score, comment_pcts, comment_examples = score_sentiment(comments)
     depth_score, filler_pct, timestamps = score_content(transcript_chunks, meta["title"])
@@ -473,9 +570,22 @@ async def recommend(req: RecommendRequest):
             intent = fetch_video_metadata(req.video_id)["title"]
         except Exception:
             raise HTTPException(status_code=400, detail="Add a search intent or analyze a video first.")
+    spell = build_general_query_spell_checker(req.title)
+    intent = correct_query(intent, spell)
+    source_profile = get_video_profile(req.video_id, req.title)
+    source_ok, source_match = source_intent_match(intent, source_profile)
+    if not source_ok:
+        return JSONResponse({
+            "intent": intent,
+            "source_match": source_match,
+            "message": "That search is not relevant to the video you analyzed.",
+            "recommendations": [],
+        })
+    source_title = source_profile.get("title") or req.title or ""
+    search_intent = f"{source_title} {intent}".strip()
 
     try:
-        search_results = search_youtube_videos(intent, exclude_video_id=req.video_id, max_results=6)
+        search_results = search_youtube_videos(search_intent, exclude_video_id=req.video_id, max_results=8)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"YouTube recommendation search failed: {e}")
 
@@ -484,7 +594,11 @@ async def recommend(req: RecommendRequest):
         try:
             meta = fetch_video_metadata(result["video_id"])
             quality = estimated_quality_score(meta)
-            relevance = relevance_score(intent, meta["title"])
+            relevance = relevance_score(search_intent, meta["title"])
+            source_relevance = relevance_score(source_profile.get("source_text", ""), meta["title"])
+            if relevance < 5.4 or source_relevance < 5.4:
+                print(f"Recommendation filtered as off-topic: {meta['title']}")
+                continue
             recommendations.append({
                 "video_id": result["video_id"],
                 "title": meta["title"] or result["title"],
@@ -492,6 +606,7 @@ async def recommend(req: RecommendRequest):
                 "thumbnail": meta["thumbnail"] or result["thumbnail"],
                 "score": quality,
                 "relevance": relevance,
+                "source_relevance": source_relevance,
                 "recommendation_score": recommendation_blend(quality, relevance),
                 "url": f"https://www.youtube.com/watch?v={result['video_id']}",
             })
@@ -600,22 +715,39 @@ def generate_answer_with_gemini(system: str, context: str, question: str) -> str
         raise RuntimeError("Gemini API key is missing. Add GEMINI_API_KEY to your .env and restart Uvicorn.")
     if GEMINI_API_KEY.startswith("gsk_"):
         raise RuntimeError("GEMINI_API_KEY contains a Groq key. Replace it with a Gemini key from Google AI Studio.")
+    if not GEMINI_MODELS:
+        raise RuntimeError("No Gemini models configured. Add GEMINI_MODELS to your .env and restart Uvicorn.")
     prompt = (
         f"{system}\n\n"
         f"TRANSCRIPT EXCERPTS:\n{context}\n\n"
         f"QUESTION: {question}"
     )
-    response = gemini_model.generate_content(
-        prompt,
-        generation_config={
-            "temperature": 0.0,
-            "max_output_tokens": 350,
-        },
-    )
-    answer = (getattr(response, "text", "") or "").strip()
-    if not answer:
-        raise RuntimeError("Gemini returned an empty answer.")
-    return answer
+    errors = []
+    for model_name in GEMINI_MODELS:
+        try:
+            print(f"Trying Gemini model: {model_name}")
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.0,
+                    "max_output_tokens": 350,
+                },
+            )
+            answer = (getattr(response, "text", "") or "").strip()
+            if answer:
+                print(f"Gemini answer generated with: {model_name}")
+                return answer
+            errors.append(f"{model_name}: empty response")
+        except Exception as e:
+            errors.append(f"{model_name}: {e}")
+            print(f"Gemini model failed ({model_name}): {e}")
+            if is_quota_error(e):
+                raise RuntimeError(
+                    "Gemini free quota or rate limit reached. Answer generation has been stopped to avoid extra usage. "
+                    "Try again later or switch GEMINI_MODELS to a model with available quota."
+                ) from e
+    raise RuntimeError("All Gemini models failed. " + " | ".join(errors))
 
 
 class AskRequest(BaseModel):
@@ -704,6 +836,8 @@ async def ask(req: AskRequest):
         print(f"Gemini error: {error_text}")
         if "api key" in error_text.lower():
             detail = "Gemini API key is missing or invalid. Check GEMINI_API_KEY in your .env and restart Uvicorn."
+        elif "quota" in error_text.lower() or "rate limit" in error_text.lower():
+            detail = error_text
         else:
             detail = f"Answer generation failed: {error_text}"
         return JSONResponse(
