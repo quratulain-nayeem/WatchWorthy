@@ -13,6 +13,11 @@ import numpy as np
 from html import unescape
 
 from youtube_transcript_api import YouTubeTranscriptApi
+try:
+    from youtube_transcript_api.proxies import GenericProxyConfig, WebshareProxyConfig
+except Exception:
+    GenericProxyConfig = None
+    WebshareProxyConfig = None
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util
 from sklearn.cluster import KMeans
@@ -25,6 +30,14 @@ load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 GEMINI_API_KEY  = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+YOUTUBE_TRANSCRIPT_PROXY = (os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip()
+WEBSHARE_PROXY_USERNAME = (os.getenv("WEBSHARE_PROXY_USERNAME") or "").strip()
+WEBSHARE_PROXY_PASSWORD = (os.getenv("WEBSHARE_PROXY_PASSWORD") or "").strip()
+WEBSHARE_PROXY_COUNTRIES = [
+    country.strip().upper()
+    for country in (os.getenv("WEBSHARE_PROXY_COUNTRIES") or "").split(",")
+    if country.strip()
+]
 GEMINI_MODELS   = [
     model.strip()
     for model in os.getenv(
@@ -66,6 +79,32 @@ video_profile_cache: dict[str, dict] = {}
 
 def save_cache():
     CACHE_FILE.write_text(json.dumps(transcript_cache))
+
+
+def build_transcript_api() -> YouTubeTranscriptApi:
+    if WEBSHARE_PROXY_USERNAME and WEBSHARE_PROXY_PASSWORD and WebshareProxyConfig:
+        print("Using Webshare proxy for YouTube transcripts.")
+        return YouTubeTranscriptApi(
+            proxy_config=WebshareProxyConfig(
+                proxy_username=WEBSHARE_PROXY_USERNAME,
+                proxy_password=WEBSHARE_PROXY_PASSWORD,
+                filter_ip_locations=WEBSHARE_PROXY_COUNTRIES or None,
+            )
+        )
+
+    if YOUTUBE_TRANSCRIPT_PROXY and GenericProxyConfig:
+        print("Using generic proxy for YouTube transcripts.")
+        return YouTubeTranscriptApi(
+            proxy_config=GenericProxyConfig(
+                http_url=YOUTUBE_TRANSCRIPT_PROXY,
+                https_url=YOUTUBE_TRANSCRIPT_PROXY,
+            )
+        )
+
+    if YOUTUBE_TRANSCRIPT_PROXY or WEBSHARE_PROXY_USERNAME or WEBSHARE_PROXY_PASSWORD:
+        print("Transcript proxy env vars are set, but this youtube-transcript-api version has no proxy support.")
+
+    return YouTubeTranscriptApi()
 
 # ── Spellchecker ─────────────────────────────────────────────────────────────
 QUERY_SLANG_WHITELIST = {
@@ -316,7 +355,7 @@ def transcript_text(chunks: list[dict] | None) -> str | None:
 
 def fetch_transcript(video_id: str) -> list[dict] | None:
     try:
-        ytt             = YouTubeTranscriptApi()
+        ytt             = build_transcript_api()
         transcript_list = ytt.list(video_id)
         try:
             chunks = transcript_list.find_manually_created_transcript(["en"]).fetch()
