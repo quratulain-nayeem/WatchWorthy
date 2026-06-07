@@ -514,6 +514,7 @@ async def serve_frontend():
 class AnalyzeRequest(BaseModel):
     url: str
     transcript: str | None = None
+    client_transcript_attempted: bool = False
 
 
 class RecommendRequest(BaseModel):
@@ -537,6 +538,10 @@ async def analyze(req: AnalyzeRequest):
         transcript_cache[video_id] = transcript
         save_cache()
         print(f"Using client-provided transcript for: {video_id}")
+    elif req.client_transcript_attempted:
+        transcript = None
+        transcript_chunks = None
+        print(f"Client transcript unavailable; skipping server transcript fetch for: {video_id}")
     else:
         transcript_chunks = fetch_transcript(video_id)
         transcript = transcript_text(transcript_chunks)

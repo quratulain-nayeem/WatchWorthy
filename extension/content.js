@@ -297,45 +297,121 @@ function renderResults(data) {
 }
 
 // ── Main analyze flow ─────────────────────────────────────────────────────────
+function parseJsonValueAfter(text, marker) {
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex === -1) return null;
+
+  const start = text.slice(markerIndex + marker.length).search(/[\[{]/);
+  if (start === -1) return null;
+
+  const jsonStart = markerIndex + marker.length + start;
+  const open = text[jsonStart];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = jsonStart; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === open) depth++;
+    if (ch === close) depth--;
+
+    if (depth === 0) {
+      return JSON.parse(text.slice(jsonStart, i + 1));
+    }
+  }
+
+  return null;
+}
+
+function getCaptionTracks(html) {
+  const playerResponse = parseJsonValueAfter(html, "ytInitialPlayerResponse");
+  const tracksFromPlayer =
+    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+  if (Array.isArray(tracksFromPlayer)) return tracksFromPlayer;
+
+  const tracks = parseJsonValueAfter(html, "\"captionTracks\":");
+  return Array.isArray(tracks) ? tracks : [];
+}
+
+function selectCaptionTrack(tracks) {
+  return (
+    tracks.find((t) => t.languageCode === "en" && !t.kind) ||
+    tracks.find((t) => t.languageCode === "en") ||
+    tracks.find((t) => t.languageCode?.startsWith("en")) ||
+    tracks[0]
+  );
+}
+
+function parseJson3Transcript(payload) {
+  const lines = [];
+
+  for (const event of payload.events || []) {
+    const text = (event.segs || [])
+      .map((seg) => seg.utf8 || "")
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (text) lines.push(text);
+  }
+
+  return lines.join(" ").trim();
+}
+
+function parseXmlTranscript(xml) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, "text/xml");
+
+  return [...doc.querySelectorAll("text")]
+    .map((el) => el.textContent.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 async function fetchTranscriptFromYouTube(videoId) {
   try {
-    // Get the video page to extract caption track URL
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-    const html = await res.text();
+    const pageHtml = document.documentElement?.innerHTML || "";
+    let tracks = getCaptionTracks(pageHtml);
 
-    // Extract caption tracks from ytInitialPlayerResponse
-    const match = html.match(/"captionTracks":(\[.*?\])/);
-    if (!match) return null;
+    if (!tracks.length) {
+      const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
+      tracks = getCaptionTracks(await res.text());
+    }
 
-    const tracks = JSON.parse(match[1]);
-
-    // Prefer English
-    const track =
-      tracks.find(t => t.languageCode === "en" && !t.kind) ||
-      tracks.find(t => t.languageCode === "en") ||
-      tracks[0];
-
+    const track = selectCaptionTrack(tracks);
     if (!track?.baseUrl) return null;
 
-    // Fetch the actual transcript XML
-    const xmlRes = await fetch(track.baseUrl);
-    const xml = await xmlRes.text();
+    const trackUrl = new URL(track.baseUrl);
+    trackUrl.searchParams.set("fmt", "json3");
 
-    // Parse XML into plain text
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, "text/xml");
-    const texts = [...doc.querySelectorAll("text")]
-      .map(el => el.textContent
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .trim()
-      )
-      .filter(Boolean);
+    const transcriptRes = await fetch(trackUrl.toString());
+    const transcriptBody = await transcriptRes.text();
 
-    return texts.join(" ");
+    try {
+      const transcript = parseJson3Transcript(JSON.parse(transcriptBody));
+      return transcript.length > 40 ? transcript : null;
+    } catch {
+      const transcript = parseXmlTranscript(transcriptBody);
+      return transcript.length > 40 ? transcript : null;
+    }
   } catch (err) {
     console.error("Transcript fetch failed:", err);
     return null;
@@ -359,7 +435,11 @@ async function analyze(url) {
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, transcript }),
+      body: JSON.stringify({
+        url,
+        transcript,
+        client_transcript_attempted: true,
+      }),
     });
 
     if (!res.ok) throw new Error(`Server error ${res.status}`);

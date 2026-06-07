@@ -2,9 +2,14 @@
   "manifest_version": 3,
   "name": "WatchWorthy",
   "version": "1.0.0",
-  "description": "Is this tutorial worth your time? Get a quality score based on transcript depth, viewer sentiment, and engagement — before you commit to watching.",
+  "description": "Is this tutorial worth your time? Get a quality score based on transcript depth, viewer sentiment, and engagement before you commit to watching.",
 
-  "permissions": ["activeTab"],
+  "permissions": ["activeTab", "tabs"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://*.googlevideo.com/*",
+    "https://quratulainnnnn-watchworthy.hf.space/*"
+  ],
 
   "content_scripts": [
     {
