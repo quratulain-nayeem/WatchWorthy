@@ -222,7 +222,7 @@ function renderResults(data) {
         body: JSON.stringify({ video_id: currentVideoId, question }),
       });
       const json = await res.json();
-      answerBox.textContent = json.answer || "No answer returned.";
+      answerBox.textContent = json.answer || json.detail || `Request failed with status ${res.status}.`;
       answerBox.classList.add("visible");
     } catch (err) {
       answerBox.textContent = "Failed to get answer. Try again.";
