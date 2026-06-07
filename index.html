@@ -416,20 +416,26 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       column-gap: 32px;
-      row-gap: 10px;
       align-items: start;
+    }
+
+    .left-column {
+      grid-column: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
     }
 
     @media (max-width: 768px) {
       .results-grid {
         grid-template-columns: 1fr;
+        row-gap: 24px;
       }
     }
 
     /* Score column */
     .score-card {
-      grid-column: 1;
-      grid-row: 1;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -586,7 +592,7 @@
     /* Detail column */
     .detail-card {
       grid-column: 2;
-      grid-row: 1 / span 2;
+      grid-row: 1;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -737,8 +743,6 @@
 
     /* RAG */
     .rag-section {
-      grid-column: 1;
-      grid-row: 2;
       min-width: 0;
     }
 
@@ -751,6 +755,7 @@
     }
 
     @media (max-width: 768px) {
+      .left-column,
       .score-card,
       .detail-card,
       .rag-section {
@@ -1267,7 +1272,8 @@
 
   <main class="results" id="results" aria-live="polite">
     <div class="results-grid">
-      <div class="score-card">
+      <div class="left-column">
+        <div class="score-card">
         <div class="ring-wrap">
           <svg class="ring-svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle class="ring-bg" cx="50" cy="50" r="42" />
@@ -1319,6 +1325,23 @@
         </div>
       </div>
 
+        <div class="rag-section" id="rag-section">
+          <h2 class="rag-title">Got a question?</h2>
+          <div class="rag-input-row">
+            <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
+            <button type="button" class="btn-ask" id="btn-ask">Ask</button>
+          </div>
+          <div class="answer-loading" id="answer-loading" aria-live="polite">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <div class="answer-card" id="answer-card">
+            <span id="answer-text"></span>
+          </div>
+        </div>
+      </div>
+
       <div class="detail-card">
         <div class="thumb-placeholder" role="img" aria-label="Video thumbnail placeholder"></div>
         <h2 class="video-title" id="video-title">Python Async/Await Explained – Full Tutorial</h2>
@@ -1357,21 +1380,6 @@
         </div>
       </div>
 
-      <div class="rag-section" id="rag-section">
-        <h2 class="rag-title">Got a question?</h2>
-        <div class="rag-input-row">
-          <input type="text" id="rag-query" placeholder="Ask a question about the video…" />
-          <button type="button" class="btn-ask" id="btn-ask">Ask</button>
-        </div>
-        <div class="answer-loading" id="answer-loading" aria-live="polite">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
-        <div class="answer-card" id="answer-card">
-          <span id="answer-text"></span>
-        </div>
-      </div>
     </div>
 
     <section class="recommend-section" id="recommend-section">
