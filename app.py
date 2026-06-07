@@ -734,6 +734,12 @@ Format your response as:
 - Bullet list of the main topics or themes covered (max 5 bullets)
 Base everything strictly on the excerpts. Do not guess or use outside knowledge."""
 
+SYSTEM_PROMPT_PROFILE = """You are a strict video assistant.
+The transcript is not available, so use ONLY the provided video details.
+If the details do not contain enough information, say what can be inferred from the title, channel, and comments.
+Do not use outside knowledge.
+Keep the answer concise."""
+
 
 # ── Mean embedding cache ──────────────────────────────────────────────────────
 _mean_emb_cache: dict[str, np.ndarray] = {}
@@ -810,7 +816,12 @@ def compact_context(selected_sentences: list[str], max_chars: int = 4500) -> str
     return " ".join(kept)
 
 
-def generate_answer_with_gemini(system: str, context: str, question: str) -> str:
+def generate_answer_with_gemini(
+    system: str,
+    context: str,
+    question: str,
+    source_label: str = "TRANSCRIPT EXCERPTS",
+) -> str:
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key is missing. Add GEMINI_API_KEY to your .env and restart Uvicorn.")
     if GEMINI_API_KEY.startswith("gsk_"):
@@ -819,7 +830,7 @@ def generate_answer_with_gemini(system: str, context: str, question: str) -> str
         raise RuntimeError("No Gemini models configured. Add GEMINI_MODELS to your .env and restart Uvicorn.")
     prompt = (
         f"{system}\n\n"
-        f"TRANSCRIPT EXCERPTS:\n{context}\n\n"
+        f"{source_label}:\n{context}\n\n"
         f"QUESTION: {question}"
     )
     errors = []
@@ -867,10 +878,27 @@ async def ask(req: AskRequest):
             transcript_cache[req.video_id] = transcript
             save_cache()
         else:
-            raise HTTPException(
-                status_code=404,
-                detail="Transcript not available for this video."
-            )
+            profile = get_video_profile(req.video_id)
+            context = compact_context(profile.get("source_text", ""), max_chars=3200)
+            if not context:
+                return JSONResponse({
+                    "answer": "Transcript is not available, and there is not enough video detail to answer this question."
+                })
+            try:
+                answer = generate_answer_with_gemini(
+                    SYSTEM_PROMPT_PROFILE,
+                    context,
+                    req.question,
+                    source_label="VIDEO DETAILS",
+                )
+            except Exception as e:
+                error_text = str(e)
+                print(f"Gemini profile fallback error: {error_text}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"detail": f"Answer generation failed: {error_text}"},
+                )
+            return JSONResponse({"answer": answer})
 
     # Spell correction
     spell = build_spell_checker(transcript)

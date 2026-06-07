@@ -1498,6 +1498,62 @@
         return false;
       } catch { return false; }
     }
+
+    function extractVideoId(str) {
+      try {
+        const u = new URL(str.trim());
+        const h = u.hostname.replace(/^www\./, "");
+        if (h === "youtu.be") return u.pathname.slice(1).split(/[/?#]/)[0];
+        if (["youtube.com", "m.youtube.com", "music.youtube.com"].includes(h)) {
+          if (u.pathname === "/watch") return u.searchParams.get("v");
+          if (u.pathname.startsWith("/embed/")) return u.pathname.split("/")[2];
+          if (u.pathname.startsWith("/shorts/")) return u.pathname.split("/")[2];
+        }
+      } catch {}
+      return null;
+    }
+
+    async function fetchTranscriptFromYouTube(videoId) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 7000);
+      try {
+        const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+          signal: controller.signal,
+        });
+        const html = await pageRes.text();
+        const match = html.match(/"captionTracks":(\[.*?\])/);
+        if (!match) return null;
+
+        const tracks = JSON.parse(match[1]);
+        const track =
+          tracks.find(t => t.languageCode === "en" && !t.kind) ||
+          tracks.find(t => t.languageCode === "en") ||
+          tracks[0];
+        if (!track || !track.baseUrl) return null;
+
+        const transcriptRes = await fetch(track.baseUrl, {
+          signal: controller.signal,
+        });
+        const xml = await transcriptRes.text();
+        const doc = new DOMParser().parseFromString(xml, "text/xml");
+        const parts = [...doc.querySelectorAll("text")]
+          .map(el => el.textContent
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"')
+            .trim()
+          )
+          .filter(Boolean);
+        return parts.join(" ");
+      } catch (err) {
+        console.warn("Browser transcript fetch failed:", err?.name || err);
+        return null;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
   
     // ── Ring animation ──────────────────────────────────────────────────────
     function setRingProgress(fraction) {
@@ -1818,10 +1874,17 @@ if (data.thumbnail && thumbEl) {
   if (window.setWaveformAnalyzing) window.setWaveformAnalyzing(true);
 
   try {
+    const videoId = extractVideoId(raw);
+    const transcript = videoId ? await fetchTranscriptFromYouTube(videoId) : null;
+    console.log(
+      "[WatchWorthy] browser transcript:",
+      transcript ? `${transcript.length} chars` : "not available"
+    );
+
     const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: raw }),
+      body: JSON.stringify({ url: raw, transcript }),
     });
 
     if (!res.ok) {
