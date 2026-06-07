@@ -352,6 +352,7 @@ async function analyze(url) {
 
   // Fetch transcript client-side first
   const transcript = await fetchTranscriptFromYouTube(videoId);
+  console.log("[WatchWorthy] transcript length:", transcript?.length || 0);
 
   if (body) body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
 
