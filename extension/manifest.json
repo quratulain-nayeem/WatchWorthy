@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "WatchWorthy",
+  "version": "1.0.0",
+  "description": "Is this tutorial worth your time? Get a quality score based on transcript depth, viewer sentiment, and engagement — before you commit to watching.",
+
+  "permissions": ["activeTab"],
+
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/watch*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+
+  "action": {
+    "default_icon": "icons/icon128.png"
+  }
+}

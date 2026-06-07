@@ -1,0 +1,366 @@
+#ww-panel * {
+  color: inherit;
+}
+
+#ww-panel {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: #0a0a0a;
+  border: 1px solid #2a0a0a;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 16px;
+  color: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Header */
+#ww-panel .ww-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#ww-panel .ww-logo {
+  color: #cc0000;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+#ww-panel .ww-tagline {
+  color: #666;
+  font-size: 12px;
+}
+
+/* Score ring area */
+#ww-panel .ww-score-area {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+#ww-panel .ww-ring-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+}
+
+#ww-panel .ww-ring-wrap svg {
+  transform: rotate(-90deg);
+}
+
+#ww-panel .ww-ring-bg {
+  fill: none;
+  stroke: #1a1a1a;
+  stroke-width: 8;
+}
+
+#ww-panel .ww-ring-fill {
+  fill: none;
+  stroke: #cc0000;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s ease;
+}
+
+#ww-panel .ww-score-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Sub scores */
+#ww-panel .ww-subscores {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#ww-panel .ww-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+#ww-panel .ww-bar-label {
+  width: 70px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+#ww-panel .ww-bar-track {
+  flex: 1;
+  height: 4px;
+  background: #1a1a1a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#ww-panel .ww-bar-fill {
+  height: 100%;
+  background: #cc0000;
+  border-radius: 2px;
+  transition: width 1s ease;
+}
+
+#ww-panel .ww-bar-val {
+  width: 28px;
+  text-align: right;
+  color: #ccc;
+  font-size: 11px;
+}
+
+/* Comment pills */
+#ww-panel .ww-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+#ww-panel .ww-pill {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#ww-panel .ww-pill:hover,
+#ww-panel .ww-pill.active {
+  background: #cc0000;
+  border-color: #cc0000;
+  color: #fff;
+}
+
+/* Comment examples */
+#ww-panel .ww-comment-box {
+  background: #111;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: #bbb;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+  display: none;
+}
+
+#ww-panel .ww-comment-box.visible {
+  display: block;
+}
+
+/* Timestamps */
+#ww-panel .ww-section-title {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+#ww-panel .ww-timestamps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+#ww-panel .ww-timestamp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+#ww-panel .ww-timestamp:hover {
+  background: #1a1a1a;
+}
+
+#ww-panel .ww-ts-time {
+  color: #cc0000;
+  font-size: 11px;
+  font-weight: 600;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+#ww-panel .ww-ts-label {
+  font-size: 12px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Divider */
+#ww-panel .ww-divider {
+  border: none;
+  border-top: 1px solid #1a1a1a;
+  margin: 16px 0;
+}
+
+/* Q&A */
+#ww-panel .ww-qa-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#ww-panel .ww-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#ww-panel .ww-input:focus {
+  border-color: #cc0000;
+}
+
+#ww-panel .ww-btn {
+  background: #cc0000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+#ww-panel .ww-btn:hover {
+  background: #aa0000;
+}
+
+#ww-panel .ww-btn:disabled {
+  background: #333;
+  cursor: not-allowed;
+}
+
+#ww-panel .ww-answer-box {
+  background: #111;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.6;
+  min-height: 40px;
+  display: none;
+}
+
+#ww-panel .ww-answer-box.visible {
+  display: block;
+}
+
+/* Recommend section */
+#ww-panel .ww-rec-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#ww-panel .ww-rec-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#ww-panel .ww-rec-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #111;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+#ww-panel .ww-rec-card:hover {
+  background: #1a1a1a;
+}
+
+#ww-panel .ww-rec-thumb {
+  width: 80px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+#ww-panel .ww-rec-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+#ww-panel .ww-rec-title {
+  font-size: 12px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 2px;
+}
+
+#ww-panel .ww-rec-channel {
+  font-size: 11px;
+  color: #666;
+}
+
+#ww-panel .ww-rec-score {
+  font-size: 11px;
+  color: #cc0000;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Loading / status */
+#ww-panel .ww-loading {
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+#ww-panel .ww-error {
+  color: #ffffff;
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+/* Filler badge */
+#ww-panel .ww-filler {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+#ww-panel .ww-filler span {
+  color: #cc0000;
+  font-weight: 600;
+}
