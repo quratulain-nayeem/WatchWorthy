@@ -412,10 +412,20 @@ function init() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "VIDEO_CHANGED") {
     currentVideoId = null;
+
+    // Remove existing panel immediately
     const existing = document.getElementById("ww-panel");
     if (existing) existing.remove();
 
-    setTimeout(() => {
+    // Retry injecting until #secondary is available
+    let attempts = 0;
+    const tryInject = () => {
+      attempts++;
+      const target = document.querySelector("#secondary");
+      if (!target && attempts < 10) {
+        setTimeout(tryInject, 500);
+        return;
+      }
       injectPanel();
       const body = document.getElementById("ww-body");
       if (body) {
@@ -424,11 +434,12 @@ chrome.runtime.onMessage.addListener((msg) => {
             Analyze This Video
           </button>
         `;
-        document.getElementById("ww-analyze-btn").addEventListener("click", () => {
+        document.getElementById("ww-analyze-btn")?.addEventListener("click", () => {
           analyze(msg.url);
         });
       }
-    }, 1500);
+    };
+    setTimeout(tryInject, 800);
   }
 });
 

@@ -526,6 +526,7 @@ class RecommendRequest(BaseModel):
 async def analyze(req: AnalyzeRequest):
     try:
         video_id = extract_video_id(req.url)
+        print(f"DEBUG transcript received: {bool(req.transcript)} len={len(req.transcript or '')}")
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
     meta       = fetch_video_metadata(video_id)
