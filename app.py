@@ -33,6 +33,8 @@ GEMINI_MODELS   = [
     ).split(",")
     if model.strip()
 ]
+ANALYZE_COMMENT_LIMIT   = int(os.getenv("ANALYZE_COMMENT_LIMIT", "12"))
+SENTIMENT_COMMENT_LIMIT = int(os.getenv("SENTIMENT_COMMENT_LIMIT", "8"))
 
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -393,8 +395,22 @@ def score_sentiment(comments: list[str]) -> tuple[float, dict, dict]:
     label_lookup = {v: k for k, v in COMMENT_LABELS.items()}
     counts = {l: 0 for l in COMMENT_LABELS}
     examples = {l: [] for l in COMMENT_LABELS}
-    for c in comments[:30]:
-        result = classifier(c, candidate_labels=candidate_labels)
+    sample = [
+        re.sub(r"\s+", " ", c).strip()[:500]
+        for c in comments[:SENTIMENT_COMMENT_LIMIT]
+        if c.strip()
+    ]
+    if not sample:
+        return 5.0, {}, {}
+    results = classifier(
+        sample,
+        candidate_labels=candidate_labels,
+        batch_size=4,
+        truncation=True,
+    )
+    if isinstance(results, dict):
+        results = [results]
+    for c, result in zip(sample, results):
         label = label_lookup[result["labels"][0]]
         counts[label] += 1
         if len(examples[label]) < 6:
@@ -561,7 +577,7 @@ async def analyze(req: AnalyzeRequest):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
     meta       = fetch_video_metadata(video_id)
-    comments   = fetch_comments(video_id)
+    comments   = fetch_comments(video_id, max_results=ANALYZE_COMMENT_LIMIT)
     if req.transcript:
         transcript = re.sub(r"\s+", " ", req.transcript).strip()
         transcript_chunks = transcript_chunks_from_text(transcript)
@@ -721,6 +737,50 @@ Base everything strictly on the excerpts. Do not guess or use outside knowledge.
 
 # ── Mean embedding cache ──────────────────────────────────────────────────────
 _mean_emb_cache: dict[str, np.ndarray] = {}
+_qa_context_cache: dict[str, dict] = {}
+
+def split_transcript_sentences(transcript: str) -> list[str]:
+    return [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+|\n+", transcript.replace("\n", " "))
+        if len(s.strip()) > 30
+    ]
+
+
+def get_video_qa_context(video_id: str, transcript: str) -> dict:
+    signature = (len(transcript), transcript[:120], transcript[-120:])
+    cached = _qa_context_cache.get(video_id)
+    if cached and cached.get("signature") == signature:
+        return cached
+
+    sentences = split_transcript_sentences(transcript)
+    if not sentences:
+        context = {
+            "signature": signature,
+            "sentences": [],
+            "sentence_embeddings": None,
+            "mean_embedding": None,
+        }
+        _qa_context_cache[video_id] = context
+        return context
+
+    sentence_embeddings = embedder.encode(sentences, convert_to_tensor=True)
+    emb_np = sentence_embeddings.cpu().numpy() if hasattr(sentence_embeddings, "cpu") else np.array(sentence_embeddings)
+    mean_emb = np.mean(emb_np, axis=0)
+    norm = np.linalg.norm(mean_emb)
+    if norm > 0:
+        mean_emb = mean_emb / norm
+
+    context = {
+        "signature": signature,
+        "sentences": sentences,
+        "sentence_embeddings": sentence_embeddings,
+        "mean_embedding": mean_emb,
+    }
+    _qa_context_cache[video_id] = context
+    _mean_emb_cache[video_id] = mean_emb
+    print(f"Cached Q&A context for: {video_id} | sentences={len(sentences)}")
+    return context
 
 def get_video_mean_embedding(video_id: str, sentences: list[str]) -> np.ndarray:
     if video_id in _mean_emb_cache:
@@ -818,18 +878,15 @@ async def ask(req: AskRequest):
 
     ...
 
-    # Split transcript into sentences
-    sentences = [
-        s.strip()
-        for s in transcript.replace("\n", " ").split(".")
-        if len(s.strip()) > 30
-    ]
+    # Reuse cached CAG context so follow-up questions do not re-embed the transcript.
+    qa_context = get_video_qa_context(req.video_id, transcript)
+    sentences = qa_context["sentences"]
     if not sentences:
         return JSONResponse({"answer": "No transcript content available."})
 
     # Embed question
     q_emb  = embedder.encode(req.question, convert_to_tensor=True)
-    s_embs = embedder.encode(sentences,    convert_to_tensor=True)
+    s_embs = qa_context["sentence_embeddings"]
     sims   = util.cos_sim(q_emb, s_embs)[0]
 
     q_lower = req.question.lower().strip()
@@ -861,7 +918,7 @@ async def ask(req: AskRequest):
     elif is_topic:
         q_emb_np   = q_emb.cpu().numpy() if hasattr(q_emb, "cpu") else np.array(q_emb)
         q_norm     = q_emb_np / (np.linalg.norm(q_emb_np) + 1e-9)
-        video_mean = get_video_mean_embedding(req.video_id, sentences)
+        video_mean = qa_context["mean_embedding"]
         video_sim  = float(np.dot(q_norm, video_mean))
         print(f"Topic path | video_sim={video_sim:.3f} | threshold={VIDEO_SIM_THRESHOLD}")
         if video_sim < VIDEO_SIM_THRESHOLD:
