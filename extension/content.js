@@ -59,7 +59,6 @@ function renderResults(data) {
   const filler = data.filler_pct ?? 0;
   const commentPcts = data.comment_pcts ?? {};
   const commentExamples = data.comment_examples ?? {};
-  const hasTranscript = data.has_transcript !== false;
 
   // Score ring circumference
   const radius = 36;
@@ -144,10 +143,9 @@ function renderResults(data) {
         class="ww-input"
         id="ww-qa-input"
         type="text"
-        placeholder="${hasTranscript ? "Ask anything about this video..." : "Transcript unavailable for Q&A"}"
-        ${hasTranscript ? "" : "disabled"}
+        placeholder="Ask anything about this video..."
       />
-      <button class="ww-btn" id="ww-qa-btn" ${hasTranscript ? "" : "disabled"}>Ask</button>
+      <button class="ww-btn" id="ww-qa-btn">Ask</button>
     </div>
     <div class="ww-answer-box" id="ww-answer-box"></div>
 
@@ -212,11 +210,6 @@ function renderResults(data) {
   qaBtn.addEventListener("click", async () => {
     const question = qaInput.value.trim();
     if (!question || !currentVideoId) return;
-    if (!hasTranscript) {
-      answerBox.textContent = "Transcript unavailable for this video, so Q&A cannot run.";
-      answerBox.classList.add("visible");
-      return;
-    }
 
     qaBtn.disabled = true;
     qaBtn.textContent = "...";
@@ -226,14 +219,10 @@ function renderResults(data) {
       const res = await fetch(`${API_BASE}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          video_id: currentVideoId,
-          question,
-          client_transcript_attempted: true,
-        }),
+        body: JSON.stringify({ video_id: currentVideoId, question }),
       });
       const json = await res.json();
-      answerBox.textContent = json.answer || json.detail || "No answer returned.";
+      answerBox.textContent = json.answer || "No answer returned.";
       answerBox.classList.add("visible");
     } catch (err) {
       answerBox.textContent = "Failed to get answer. Try again.";
@@ -308,191 +297,45 @@ function renderResults(data) {
 }
 
 // ── Main analyze flow ─────────────────────────────────────────────────────────
-function parseJsonValueAfter(text, marker) {
-  const markerIndex = text.indexOf(marker);
-  if (markerIndex === -1) return null;
-
-  const start = text.slice(markerIndex + marker.length).search(/[\[{]/);
-  if (start === -1) return null;
-
-  const jsonStart = markerIndex + marker.length + start;
-  const open = text[jsonStart];
-  const close = open === "{" ? "}" : "]";
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = jsonStart; i < text.length; i++) {
-    const ch = text[i];
-
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (ch === "\"") {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-
-    if (ch === open) depth++;
-    if (ch === close) depth--;
-
-    if (depth === 0) {
-      return JSON.parse(text.slice(jsonStart, i + 1));
-    }
-  }
-
-  return null;
-}
-
-function getCaptionTracks(html) {
-  const playerResponse =
-    parseJsonValueAfter(html, "ytInitialPlayerResponse") ||
-    parseEscapedPlayerResponse(html);
-  const tracksFromPlayer =
-    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-
-  if (Array.isArray(tracksFromPlayer)) return tracksFromPlayer;
-
-  const tracks = parseJsonValueAfter(html, "\"captionTracks\":");
-  return Array.isArray(tracks) ? tracks : [];
-}
-
-function parseEscapedPlayerResponse(html) {
-  const match = html.match(/"player_response":"((?:\\.|[^"\\])*)"/);
-  if (!match) return null;
-
-  try {
-    return JSON.parse(JSON.parse(`"${match[1]}"`));
-  } catch {
-    return null;
-  }
-}
-
-function getYtConfig(html) {
-  return parseJsonValueAfter(html, "ytcfg.set(") || {};
-}
-
-function getInnertubeClient(html) {
-  const cfg = getYtConfig(html);
-  const contextClient =
-    cfg?.INNERTUBE_CONTEXT?.client ||
-    cfg?.WEB_PLAYER_CONTEXT_CONFIGS?.WEB_PLAYER_CONTEXT_CONFIG?.context?.client;
-
-  return {
-    apiKey:
-      cfg?.INNERTUBE_API_KEY ||
-      html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1],
-    client: contextClient || {
-      clientName: "WEB",
-      clientVersion:
-        cfg?.INNERTUBE_CLIENT_VERSION ||
-        html.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/)?.[1] ||
-        "2.20240101.00.00",
-    },
-  };
-}
-
-async function fetchPlayerResponse(videoId, html) {
-  const { apiKey, client } = getInnertubeClient(html);
-  if (!apiKey) return null;
-
-  const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      context: { client },
-      videoId,
-    }),
-  });
-
-  if (!res.ok) return null;
-  return res.json();
-}
-
-function getCaptionTracksFromPlayerResponse(playerResponse) {
-  const tracks =
-    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  return Array.isArray(tracks) ? tracks : [];
-}
-
-function selectCaptionTrack(tracks) {
-  return (
-    tracks.find((t) => t.languageCode === "en" && !t.kind) ||
-    tracks.find((t) => t.languageCode === "en") ||
-    tracks.find((t) => t.languageCode?.startsWith("en")) ||
-    tracks[0]
-  );
-}
-
-function parseJson3Transcript(payload) {
-  const lines = [];
-
-  for (const event of payload.events || []) {
-    const text = (event.segs || [])
-      .map((seg) => seg.utf8 || "")
-      .join("")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (text) lines.push(text);
-  }
-
-  return lines.join(" ").trim();
-}
-
-function parseXmlTranscript(xml) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, "text/xml");
-
-  return [...doc.querySelectorAll("text")]
-    .map((el) => el.textContent.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-}
-
 async function fetchTranscriptFromYouTube(videoId) {
   try {
-    const pageHtml = document.documentElement?.innerHTML || "";
-    let tracks = getCaptionTracks(pageHtml);
-    let fetchedHtml = "";
+    // Get the video page to extract caption track URL
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
+    const html = await res.text();
 
-    if (!tracks.length) {
-      const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-      fetchedHtml = await res.text();
-      tracks = getCaptionTracks(fetchedHtml);
-    }
+    // Extract caption tracks from ytInitialPlayerResponse
+    const match = html.match(/"captionTracks":(\[.*?\])/);
+    if (!match) return null;
 
-    if (!tracks.length) {
-      const playerResponse = await fetchPlayerResponse(videoId, fetchedHtml || pageHtml);
-      tracks = getCaptionTracksFromPlayerResponse(playerResponse);
-    }
+    const tracks = JSON.parse(match[1]);
 
-    const track = selectCaptionTrack(tracks);
-    if (!track?.baseUrl) {
-      console.warn("WatchWorthy: no caption tracks found for this video.");
-      return null;
-    }
+    // Prefer English
+    const track =
+      tracks.find(t => t.languageCode === "en" && !t.kind) ||
+      tracks.find(t => t.languageCode === "en") ||
+      tracks[0];
 
-    const trackUrl = new URL(track.baseUrl);
-    trackUrl.searchParams.set("fmt", "json3");
+    if (!track?.baseUrl) return null;
 
-    const transcriptRes = await fetch(trackUrl.toString());
-    const transcriptBody = await transcriptRes.text();
+    // Fetch the actual transcript XML
+    const xmlRes = await fetch(track.baseUrl);
+    const xml = await xmlRes.text();
 
-    try {
-      const transcript = parseJson3Transcript(JSON.parse(transcriptBody));
-      return transcript.length > 40 ? transcript : null;
-    } catch {
-      const transcript = parseXmlTranscript(transcriptBody);
-      return transcript.length > 40 ? transcript : null;
-    }
+    // Parse XML into plain text
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "text/xml");
+    const texts = [...doc.querySelectorAll("text")]
+      .map(el => el.textContent
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .trim()
+      )
+      .filter(Boolean);
+
+    return texts.join(" ");
   } catch (err) {
     console.error("Transcript fetch failed:", err);
     return null;
@@ -516,11 +359,7 @@ async function analyze(url) {
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url,
-        transcript,
-        client_transcript_attempted: true,
-      }),
+      body: JSON.stringify({ url, transcript }),
     });
 
     if (!res.ok) throw new Error(`Server error ${res.status}`);
