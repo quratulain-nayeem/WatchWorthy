@@ -297,7 +297,50 @@ function renderResults(data) {
 }
 
 // ── Main analyze flow ─────────────────────────────────────────────────────────
+async function fetchTranscriptFromYouTube(videoId) {
+  try {
+    // Get the video page to extract caption track URL
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
+    const html = await res.text();
 
+    // Extract caption tracks from ytInitialPlayerResponse
+    const match = html.match(/"captionTracks":(\[.*?\])/);
+    if (!match) return null;
+
+    const tracks = JSON.parse(match[1]);
+
+    // Prefer English
+    const track =
+      tracks.find(t => t.languageCode === "en" && !t.kind) ||
+      tracks.find(t => t.languageCode === "en") ||
+      tracks[0];
+
+    if (!track?.baseUrl) return null;
+
+    // Fetch the actual transcript XML
+    const xmlRes = await fetch(track.baseUrl);
+    const xml = await xmlRes.text();
+
+    // Parse XML into plain text
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "text/xml");
+    const texts = [...doc.querySelectorAll("text")]
+      .map(el => el.textContent
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .trim()
+      )
+      .filter(Boolean);
+
+    return texts.join(" ");
+  } catch (err) {
+    console.error("Transcript fetch failed:", err);
+    return null;
+  }
+}
 async function analyze(url) {
   const videoId = extractVideoId(url);
   if (!videoId || videoId === currentVideoId) return;
@@ -305,47 +348,40 @@ async function analyze(url) {
   currentVideoId = videoId;
 
   const body = document.getElementById("ww-body");
-  if (body) {
-    body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
-  }
+  if (body) body.innerHTML = `<div class="ww-loading">Fetching transcript...</div>`;
+
+  // Fetch transcript client-side first
+  const transcript = await fetchTranscriptFromYouTube(videoId);
+
+  if (body) body.innerHTML = `<div class="ww-loading">Analyzing video...</div>`;
 
   try {
     const res = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, transcript }),
     });
 
-    if (!res.ok) {
-      throw new Error(`Server error ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
 
     const data = await res.json();
     renderResults(data);
 
   } catch (err) {
     console.error(err);
-
     if (body) {
       body.innerHTML = `
         <div class="ww-error">
-          Could not reach the server. Wait 30 seconds and click Analyze again. The Space may be waking up.
+          Could not reach the server. Wait 30 seconds and click Analyze again.
         </div>
-
-        <button
-          class="ww-btn"
-          id="ww-analyze-btn"
-          style="width:100%; padding:12px; margin-top:12px;"
-        >
+        <button class="ww-btn" id="ww-analyze-btn" style="width:100%; padding:12px; margin-top:12px;">
           Try Again
         </button>
       `;
-
-      document
-        .getElementById("ww-analyze-btn")
-        ?.addEventListener("click", () => {
-          analyze(window.location.href);
-        });
+      document.getElementById("ww-analyze-btn")?.addEventListener("click", () => {
+        currentVideoId = null;
+        analyze(window.location.href);
+      });
     }
   }
 }
@@ -364,9 +400,11 @@ function init() {
           Analyze This Video
         </button>
       `;
-      document.getElementById("ww-analyze-btn").addEventListener("click", () => {
+        document.getElementById("ww-analyze-btn")
+    ?.addEventListener("click", () => {
+        currentVideoId = null;
         analyze(window.location.href);
-      });
+    });
     }
   }, 1500);
 }

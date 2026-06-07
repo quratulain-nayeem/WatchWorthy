@@ -513,6 +513,7 @@ async def serve_frontend():
 
 class AnalyzeRequest(BaseModel):
     url: str
+    transcript: str | None = None
 
 
 class RecommendRequest(BaseModel):
@@ -529,8 +530,15 @@ async def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
     meta       = fetch_video_metadata(video_id)
     comments   = fetch_comments(video_id)
-    transcript_chunks = fetch_transcript(video_id)
-    transcript = transcript_text(transcript_chunks)
+    if req.transcript:
+        transcript = req.transcript
+        transcript_chunks = [{"text": t, "start": 0.0, "duration": 0.0} for t in req.transcript.split(". ")]
+        transcript_cache[video_id] = transcript
+        save_cache()
+        print(f"Using client-provided transcript for: {video_id}")
+    else:
+        transcript_chunks = fetch_transcript(video_id)
+        transcript = transcript_text(transcript_chunks)
     if transcript:
         transcript_cache[video_id] = transcript
         save_cache()
